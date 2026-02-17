@@ -25,7 +25,6 @@
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/gita_companion
       PYTHONUNBUFFERED: "1"
-      USE_MOCK_PROVIDER: "true"
     depends_on:
       postgres:
         condition: service_healthy

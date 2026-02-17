@@ -1,7 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_strings.dart';
 import '../state/app_state.dart';
+import '../widgets/spiritual_background.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -37,9 +39,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _continueWithEmail() async {
+    final appState = context.read<AppState>();
+    final strings = AppStrings(appState.languageCode);
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
-      setState(() => _error = 'Enter a valid email or continue anonymously.');
+      setState(() => _error = strings.t('invalid_email'));
       return;
     }
 
@@ -59,20 +63,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
     final colorScheme = Theme.of(context).colorScheme;
+    final strings = AppStrings(appState.languageCode);
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: <Color>[
-              colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-              Theme.of(context).scaffoldBackgroundColor,
-            ],
-          ),
-        ),
+      body: SpiritualBackground(
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -94,32 +90,40 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.17),
                             borderRadius: BorderRadius.circular(99),
                           ),
                           child: Text(
-                            'Personal Companion',
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            strings.t('onboarding_tag'),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
                                   color: Colors.white,
                                 ),
                           ),
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Gita Companion',
-                          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                          strings.t('onboarding_title'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineLarge
+                              ?.copyWith(
                                 color: Colors.white,
                                 height: 0.95,
                               ),
                         ),
                         const SizedBox(height: 10),
                         Text(
-                          'Ground your day with verse-based clarity, emotional steadiness, and small practical actions.',
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: Colors.white.withValues(alpha: 0.88),
-                              ),
+                          strings.t('onboarding_subtitle'),
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                  ),
                         ),
                       ],
                     ),
@@ -131,12 +135,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text('Start private or sign in',
+                          Text(strings.t('start_private'),
                               style: Theme.of(context).textTheme.titleLarge),
                           const SizedBox(height: 6),
                           Text(
-                            'Email is optional. Anonymous mode keeps identity details local.',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            strings.t('email_optional'),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
                                   color: colorScheme.onSurfaceVariant,
                                 ),
                           ),
@@ -144,20 +151,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           TextField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(
-                              labelText: 'Email (optional)',
-                              hintText: 'name@example.com',
+                            decoration: InputDecoration(
+                              labelText: strings.t('email_label'),
+                              hintText: strings.t('email_hint'),
                             ),
                           ),
                           const SizedBox(height: 12),
                           ElevatedButton(
                             onPressed: _saving ? null : _continueWithEmail,
-                            child: const Text('Continue with Email'),
+                            child: Text(strings.t('continue_email')),
                           ),
                           const SizedBox(height: 8),
                           OutlinedButton(
                             onPressed: _saving ? null : _continueAnonymous,
-                            child: const Text('Continue Anonymously'),
+                            child: Text(strings.t('continue_anonymous')),
                           ),
                           if (_error != null) ...<Widget>[
                             const SizedBox(height: 10),

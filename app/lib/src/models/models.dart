@@ -1,4 +1,4 @@
-﻿class Verse {
+class Verse {
   final int id;
   final int chapter;
   final int verseNumber;
@@ -58,6 +58,16 @@ class GuidanceVerse {
       translation: json['translation'] as String,
       whyThis: json['why_this'] as String,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'ref': ref,
+      'sanskrit': sanskrit,
+      'transliteration': transliteration,
+      'translation': translation,
+      'why_this': whyThis,
+    };
   }
 }
 
@@ -130,8 +140,8 @@ class GuidanceResponse {
           .toList(growable: false),
       guidanceShort: json['guidance_short'] as String,
       guidanceLong: json['guidance_long'] as String,
-      microPractice:
-          MicroPractice.fromJson(json['micro_practice'] as Map<String, dynamic>),
+      microPractice: MicroPractice.fromJson(
+          json['micro_practice'] as Map<String, dynamic>),
       reflectionPrompt: json['reflection_prompt'] as String,
       safety: SafetyMeta.fromJson(json['safety'] as Map<String, dynamic>),
     );
@@ -159,6 +169,39 @@ class ChatTurn {
       role: json['role'] as String,
       content: json['content'] as String,
     );
+  }
+}
+
+class ChatHistoryEntry {
+  final String role;
+  final String text;
+  final DateTime createdAt;
+
+  const ChatHistoryEntry({
+    required this.role,
+    required this.text,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'role': role,
+      'text': text,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
+
+  factory ChatHistoryEntry.fromJson(Map<String, dynamic> json) {
+    return ChatHistoryEntry(
+      role: json['role'] as String,
+      text: json['text'] as String,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+
+  ChatTurn toTurn() {
+    return ChatTurn(role: role, content: text);
   }
 }
 
@@ -236,5 +279,84 @@ class Journey {
       days: json['days'] as int,
       status: json['status'] as String,
     );
+  }
+}
+
+class MorningBackground {
+  final String name;
+  final List<String> palette;
+  final String imagePrompt;
+
+  const MorningBackground({
+    required this.name,
+    required this.palette,
+    required this.imagePrompt,
+  });
+
+  factory MorningBackground.fromJson(Map<String, dynamic> json) {
+    return MorningBackground(
+      name: json['name'] as String,
+      palette: (json['palette'] as List<dynamic>? ?? const <dynamic>[])
+          .map((item) => item.toString())
+          .toList(growable: false),
+      imagePrompt: json['image_prompt'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'name': name,
+      'palette': palette,
+      'image_prompt': imagePrompt,
+    };
+  }
+}
+
+class MorningGreeting {
+  final DateTime date;
+  final String mode;
+  final String language;
+  final String greeting;
+  final GuidanceVerse verse;
+  final String meaning;
+  final String affirmation;
+  final MorningBackground background;
+
+  const MorningGreeting({
+    required this.date,
+    required this.mode,
+    required this.language,
+    required this.greeting,
+    required this.verse,
+    required this.meaning,
+    required this.affirmation,
+    required this.background,
+  });
+
+  factory MorningGreeting.fromJson(Map<String, dynamic> json) {
+    return MorningGreeting(
+      date: DateTime.parse(json['date'] as String),
+      mode: json['mode'] as String,
+      language: json['language'] as String,
+      greeting: json['greeting'] as String,
+      verse: GuidanceVerse.fromJson(json['verse'] as Map<String, dynamic>),
+      meaning: json['meaning'] as String,
+      affirmation: json['affirmation'] as String,
+      background: MorningBackground.fromJson(
+          json['background'] as Map<String, dynamic>),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'date': date.toIso8601String().split('T').first,
+      'mode': mode,
+      'language': language,
+      'greeting': greeting,
+      'verse': verse.toJson(),
+      'meaning': meaning,
+      'affirmation': affirmation,
+      'background': background.toJson(),
+    };
   }
 }

@@ -1,7 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_strings.dart';
+import '../models/models.dart';
 import '../state/app_state.dart';
+import '../widgets/spiritual_background.dart';
 import '../widgets/verse_preview_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -10,11 +16,11 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final colorScheme = Theme.of(context).colorScheme;
+    final strings = AppStrings(appState.languageCode);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gita Companion'),
+        title: Text(strings.t('app_title')),
         actions: <Widget>[
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -25,34 +31,34 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: <Color>[
-              colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-              Theme.of(context).scaffoldBackgroundColor,
-            ],
-          ),
-        ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'divine-chat-fab',
+        onPressed: () => Navigator.pushNamed(context, '/chat'),
+        icon: const Icon(Icons.auto_awesome),
+        label: Text(strings.t('divine_chat')),
+        backgroundColor: const Color(0xFFFFD8A8),
+        foregroundColor: const Color(0xFF4A2A14),
+      ),
+      body: SpiritualBackground(
         child: RefreshIndicator(
           onRefresh: () => appState.refreshDailyVerse(),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
             children: <Widget>[
               _HeaderPanel(
+                strings: strings,
                 mode: appState.guidanceMode,
                 identityLine: appState.privacyAnonymous
-                    ? 'Private by default. Anonymous mode is active.'
-                    : 'Signed in as ${appState.email ?? 'user'}',
+                    ? strings.t('anonymous_active')
+                    : '${strings.t('signed_in_as')} ${appState.email ?? 'user'}',
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 24),
               _SectionTitle(
-                title: 'Daily Verse',
-                subtitle: 'A steady anchor for today',
+                title: strings.t('daily_verse'),
+                subtitle: strings.t('daily_verse_subtitle'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               if (appState.dailyVerse != null)
                 VersePreviewCard(
                   verse: appState.dailyVerse!,
@@ -66,45 +72,106 @@ class HomeScreen extends StatelessWidget {
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(appState.errorMessage ?? 'No daily verse loaded yet.'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          appState.dailyVerseError ??
+                              strings.t('daily_verse_unavailable'),
+                        ),
+                        const SizedBox(height: 10),
+                        FilledButton.tonalIcon(
+                          onPressed: () =>
+                              context.read<AppState>().refreshDailyVerse(),
+                          icon: const Icon(Icons.refresh),
+                          label: Text(strings.t('retry')),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              const SizedBox(height: 18),
-              const _SectionTitle(
-                title: 'Companion Tools',
-                subtitle: 'Choose where you want guidance today',
+              const SizedBox(height: 6),
+              Text(
+                strings.t('daily_verse_update_note'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 24),
+              _SectionTitle(
+                title: strings.t('morning_greeting'),
+                subtitle: strings.t('morning_greeting_subtitle'),
+              ),
+              const SizedBox(height: 8),
+              if (appState.morningGreeting != null)
+                _MorningGreetingCard(
+                  greeting: appState.morningGreeting!,
+                  strings: strings,
+                )
+              else
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(strings.t('morning_greeting_empty')),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.tonalIcon(
+                  onPressed: appState.morningGreetingLoading
+                      ? null
+                      : () => context
+                          .read<AppState>()
+                          .generateMorningGreeting(force: true),
+                  icon: appState.morningGreetingLoading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.wb_sunny_outlined),
+                  label: Text(
+                    appState.morningGreeting == null
+                        ? strings.t('generate_morning_greeting')
+                        : strings.t('regenerate_morning_greeting'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _SectionTitle(
+                title: strings.t('companion_tools'),
+                subtitle: strings.t('companion_tools_subtitle'),
+              ),
+              const SizedBox(height: 8),
               GridView.count(
                 shrinkWrap: true,
-                crossAxisCount: MediaQuery.of(context).size.width >= 760 ? 4 : 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
+                crossAxisCount:
+                    MediaQuery.of(context).size.width >= 760 ? 4 : 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
                 childAspectRatio: 1.05,
                 physics: const NeverScrollableScrollPhysics(),
                 children: <Widget>[
-                  _DashboardTile(
+                  _GlassTile(
                     icon: Icons.spa_outlined,
-                    title: 'Check-in',
-                    subtitle: 'Mood + one-minute reset',
+                    iconColor: const Color(0xFF4B5D43), // Sage green
+                    title: strings.t('check_in'),
+                    subtitle: strings.t('check_in_subtitle'),
                     onTap: () => Navigator.pushNamed(context, '/mood'),
                   ),
-                  _DashboardTile(
-                    icon: Icons.psychology_alt_outlined,
-                    title: 'Chatbot',
-                    subtitle: 'Conversation with verse-grounded guidance',
-                    onTap: () => Navigator.pushNamed(context, '/chat'),
-                  ),
-                  _DashboardTile(
+                  _GlassTile(
                     icon: Icons.favorite_outline,
-                    title: 'Favorites',
-                    subtitle: 'Saved verses for revisit',
+                    iconColor: const Color(0xFFFF9933), // Saffron gold
+                    title: strings.t('favorites'),
+                    subtitle: strings.t('favorites_subtitle'),
                     onTap: () => Navigator.pushNamed(context, '/favorites'),
                   ),
-                  _DashboardTile(
+                  _GlassTile(
                     icon: Icons.route_outlined,
-                    title: 'Journeys',
-                    subtitle: 'Structured progress paths',
+                    iconColor: const Color(0xFF4B5D43), // Sage green
+                    title: strings.t('journeys'),
+                    subtitle: strings.t('journeys_subtitle'),
                     onTap: () => Navigator.pushNamed(context, '/journeys'),
                   ),
                 ],
@@ -117,29 +184,39 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Header Panel — Deep terracotta gradient + serif greeting
+// ---------------------------------------------------------------------------
+
 class _HeaderPanel extends StatelessWidget {
+  final AppStrings strings;
   final String mode;
   final String identityLine;
 
-  const _HeaderPanel({required this.mode, required this.identityLine});
+  const _HeaderPanel({
+    required this.strings,
+    required this.mode,
+    required this.identityLine,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: <Color>[Color(0xFF5E3620), Color(0xFF8E5B36), Color(0xFFB77A4B)],
+          colors: <Color>[
+            Color(0xFF8E4A2F), // Deep Terracotta
+            Color(0xFF5D2E1C), // Dark Earthy Brown
+          ],
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 18,
+            color: const Color(0xFF5D2E1C).withValues(alpha: 0.35),
+            blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
@@ -147,45 +224,48 @@ class _HeaderPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  mode == 'comfort' ? 'Comfort Mode' : 'Clarity Mode',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Colors.white,
-                      ),
-                ),
-              ),
-            ],
+          // Mode badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              mode == 'comfort'
+                  ? strings.t('comfort_mode')
+                  : strings.t('clarity_mode'),
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                  ),
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
+          // Serif greeting
           Text(
-            'Good to see you.',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                  height: 1,
-                ),
+            strings.t('good_to_see_you'),
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 26,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+              height: 1.2,
+              letterSpacing: 0.3,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             identityLine,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.88),
+                  color: Colors.white.withValues(alpha: 0.85),
                 ),
           ),
           const SizedBox(height: 12),
-          Divider(color: Colors.white.withValues(alpha: 0.25), height: 1),
+          Divider(color: Colors.white.withValues(alpha: 0.2), height: 1),
           const SizedBox(height: 12),
           Text(
-            'Stay with one clear intention for the next hour.',
+            strings.t('stay_intention'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onPrimary,
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
           ),
         ],
@@ -193,6 +273,10 @@ class _HeaderPanel extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Section Title
+// ---------------------------------------------------------------------------
 
 class _SectionTitle extends StatelessWidget {
   final String title;
@@ -218,49 +302,199 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _DashboardTile extends StatelessWidget {
+// ---------------------------------------------------------------------------
+// Glassmorphic Tile with scale-on-tap effect
+// ---------------------------------------------------------------------------
+
+class _GlassTile extends StatefulWidget {
   final IconData icon;
+  final Color iconColor;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  const _DashboardTile({
+  const _GlassTile({
     required this.icon,
+    required this.iconColor,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+  State<_GlassTile> createState() => _GlassTileState();
+}
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
+class _GlassTileState extends State<_GlassTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _scaleController;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 200),
+      lowerBound: 0.0,
+      upperBound: 1.0,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
+      CurvedAnimation(parent: _scaleController, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) => _scaleController.forward();
+
+  void _onTapUp(TapUpDetails _) {
+    _scaleController.reverse();
+    widget.onTap();
+  }
+
+  void _onTapCancel() => _scaleController.reverse();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scaleAnimation,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scaleAnimation.value,
+          child: child,
+        );
+      },
+      child: GestureDetector(
+        onTapDown: _onTapDown,
+        onTapUp: _onTapUp,
+        onTapCancel: _onTapCancel,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 0.5,
+                ),
+              ),
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: widget.iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      widget.icon,
+                      color: widget.iconColor,
+                      size: 22,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    widget.title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MorningGreetingCard extends StatelessWidget {
+  final MorningGreeting greeting;
+  final AppStrings strings;
+
+  const _MorningGreetingCard({
+    required this.greeting,
+    required this.strings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = greeting.background.palette;
+    final first = palette.isNotEmpty
+        ? _colorFromHex(palette.first)
+        : const Color(0xFFF6D08D);
+    final second = palette.length > 1
+        ? _colorFromHex(palette[1])
+        : const Color(0xFFD98F4E);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: <Color>[first, second],
+        ),
+      ),
+      child: Card(
+        color: Colors.transparent,
+        elevation: 0,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colorScheme.secondary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: colorScheme.secondary),
-              ),
-              const Spacer(),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
               Text(
-                subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                greeting.greeting,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF2A1A0A),
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Bhagavad Gita ${greeting.verse.ref}',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: const Color(0xFF2A1A0A),
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                greeting.verse.translation,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF3A2A1A),
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '${strings.t('morning_affirmation')}: ${greeting.affirmation}',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF2F241A),
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${strings.t('background_theme')}: ${greeting.background.name}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
+                      color: const Color(0xFF2F241A),
                     ),
               ),
             ],
@@ -268,5 +502,13 @@ class _DashboardTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _colorFromHex(String value) {
+    final hex = value.replaceAll('#', '').trim();
+    if (hex.length != 6) {
+      return const Color(0xFFF6D08D);
+    }
+    return Color(int.parse('FF$hex', radix: 16));
   }
 }

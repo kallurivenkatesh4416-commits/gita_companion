@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import time
 from datetime import date
 from typing import Any
@@ -18,8 +18,12 @@ from .schemas import (
     ChatResponse,
     FavoriteCreate,
     FavoriteOut,
+    GuidanceVerse,
     GuidanceResponse,
     JourneyOut,
+    MorningBackground,
+    MorningGreetingRequest,
+    MorningGreetingResponse,
     MoodGuidanceRequest,
     MoodOptionsResponse,
     VerseOut,
@@ -51,61 +55,55 @@ embedding_provider = LocalHashEmbeddingProvider(dimension=settings.embedding_dim
 retriever = VerseRetriever(session_factory=SessionLocal, embedding_provider=embedding_provider)
 
 # ---------------------------------------------------------------------------
-# Legacy provider wiring (unchanged — keeps existing behaviour intact)
+# Multi-LLM orchestrator (Claude primary -> Codex fallback -> Gemini -> mock)
 # ---------------------------------------------------------------------------
 mock_provider = MockProvider()
-guidance_provider = (
-    mock_provider
-    if settings.use_mock_provider or not settings.gemini_api_key
-    else GeminiProvider(api_key=settings.gemini_api_key, model=settings.gemini_model, fallback=mock_provider)
-)
 mock_chat_provider = MockChatProvider()
-if settings.use_ollama_provider:
-    chat_provider = OllamaChatProvider(
-        base_url=settings.ollama_base_url,
-        model=settings.ollama_model,
-        fallback=mock_chat_provider,
+_guidance_providers: dict[str, Any] = {'mock': mock_provider}
+_chat_providers: dict[str, Any] = {'mock': mock_chat_provider}
+allow_external_llms = not settings.use_mock_provider
+
+if allow_external_llms and settings.gemini_api_key:
+    _guidance_providers['gemini'] = GeminiProvider(
+        api_key=settings.gemini_api_key,
+        model=settings.gemini_model,
+        fallback=mock_provider,
     )
-elif settings.use_mock_provider or not settings.gemini_api_key:
-    chat_provider = mock_chat_provider
-else:
-    chat_provider = GeminiChatProvider(
+    _chat_providers['gemini'] = GeminiChatProvider(
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
         fallback=mock_chat_provider,
     )
 
-# ---------------------------------------------------------------------------
-# Multi-LLM orchestrator (Claude primary → Codex fallback → Gemini → mock)
-# ---------------------------------------------------------------------------
-_guidance_providers: dict[str, Any] = {"mock": mock_provider}
-_chat_providers: dict[str, Any] = {"mock": mock_chat_provider}
-
-# Gemini (existing)
-if settings.gemini_api_key and not settings.use_mock_provider:
-    _guidance_providers["gemini"] = GeminiProvider(
-        api_key=settings.gemini_api_key, model=settings.gemini_model, fallback=mock_provider
-    )
-    _chat_providers["gemini"] = GeminiChatProvider(
-        api_key=settings.gemini_api_key, model=settings.gemini_model, fallback=mock_chat_provider
+if allow_external_llms and settings.use_ollama_provider:
+    _chat_providers['ollama'] = OllamaChatProvider(
+        base_url=settings.ollama_base_url,
+        model=settings.ollama_model,
+        fallback=mock_chat_provider,
     )
 
-# Codex / OpenAI (new — fallback)
-if settings.openai_api_key:
-    _guidance_providers["codex"] = CodexGuidanceProvider(
-        api_key=settings.openai_api_key, model=settings.codex_model, fallback=mock_provider
+if allow_external_llms and settings.openai_api_key:
+    _guidance_providers['codex'] = CodexGuidanceProvider(
+        api_key=settings.openai_api_key,
+        model=settings.codex_model,
+        fallback=mock_provider,
     )
-    _chat_providers["codex"] = CodexChatProvider(
-        api_key=settings.openai_api_key, model=settings.codex_model, fallback=mock_chat_provider
+    _chat_providers['codex'] = CodexChatProvider(
+        api_key=settings.openai_api_key,
+        model=settings.codex_model,
+        fallback=mock_chat_provider,
     )
 
-# Claude (new — primary)
-if settings.anthropic_api_key:
-    _guidance_providers["claude"] = ClaudeProvider(
-        api_key=settings.anthropic_api_key, model=settings.claude_model, fallback=mock_provider
+if allow_external_llms and settings.anthropic_api_key:
+    _guidance_providers['claude'] = ClaudeProvider(
+        api_key=settings.anthropic_api_key,
+        model=settings.claude_model,
+        fallback=mock_provider,
     )
-    _chat_providers["claude"] = ClaudeChatProvider(
-        api_key=settings.anthropic_api_key, model=settings.claude_model, fallback=mock_chat_provider
+    _chat_providers['claude'] = ClaudeChatProvider(
+        api_key=settings.anthropic_api_key,
+        model=settings.claude_model,
+        fallback=mock_chat_provider,
     )
 
 orchestrator = LLMOrchestrator(
@@ -124,6 +122,54 @@ MOOD_OPTIONS = [
     'Angry',
     'Hopeful',
 ]
+
+
+def _daily_verse_from_db(db: Session) -> Verse:
+    total = db.scalar(select(func.count(Verse.id)))
+    if not total:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No verses seeded yet')
+
+    day_of_year = date.today().timetuple().tm_yday
+    index = day_of_year % total
+    return db.execute(select(Verse).order_by(Verse.id).offset(index).limit(1)).scalar_one()
+
+
+def _morning_background(tags: list[str], mode: str) -> MorningBackground:
+    tag_blob = ' '.join(tags).lower()
+
+    if any(token in tag_blob for token in ['calm', 'mind', 'equanimity', 'peace']):
+        return MorningBackground(
+            name='Still Dawn',
+            palette=['#F9E7C2', '#E8CFA1', '#B7C7C7'],
+            image_prompt='A peaceful sunrise over a calm river with soft saffron and misty blue tones.',
+        )
+
+    if any(token in tag_blob for token in ['duty', 'action', 'karma', 'courage']):
+        return MorningBackground(
+            name='Courageous Sunrise',
+            palette=['#F4C26C', '#E28743', '#7B3F00'],
+            image_prompt='Golden sunrise over ancient temple steps, warm saffron light, disciplined energy.',
+        )
+
+    if any(token in tag_blob for token in ['devotion', 'faith', 'bhakti', 'surrender']):
+        return MorningBackground(
+            name='Devotional Glow',
+            palette=['#FFD9A0', '#E9B77D', '#6E7D57'],
+            image_prompt='Morning diya light in a serene shrine, soft saffron and leaf-green harmony.',
+        )
+
+    if mode == 'clarity':
+        return MorningBackground(
+            name='Focused Morning',
+            palette=['#F6D08D', '#D98F4E', '#4F6D7A'],
+            image_prompt='Crisp morning light, clear horizon, saffron and slate tones for focused intention.',
+        )
+
+    return MorningBackground(
+        name='Gentle Morning',
+        palette=['#FCE3B4', '#F2B58A', '#A5BCA7'],
+        image_prompt='Soft dawn sky with warm saffron clouds and quiet earth tones for emotional steadiness.',
+    )
 
 
 @app.middleware('http')
@@ -151,40 +197,31 @@ def on_startup() -> None:
 
 @app.get('/health')
 def health() -> dict[str, Any]:
-    guidance_provider_name = 'mock' if isinstance(guidance_provider, MockProvider) else 'gemini'
-    if isinstance(chat_provider, OllamaChatProvider):
-        chat_provider_name = f'ollama:{settings.ollama_model}'
-    elif isinstance(chat_provider, GeminiChatProvider):
-        chat_provider_name = 'gemini'
-    else:
-        chat_provider_name = 'mock'
+    registered = sorted(orchestrator.model_status().keys())
+    default_llm = settings.default_llm if settings.default_llm in registered else 'mock'
 
     return {
         'status': 'ok',
-        'guidance_provider': guidance_provider_name,
-        'chat_provider': chat_provider_name,
+        'guidance_provider': 'orchestrated',
+        'chat_provider': 'orchestrated',
+        'default_llm': default_llm,
+        'registered_models': registered,
+        'mock_mode': settings.use_mock_provider,
     }
 
 
 @app.get('/api/model-status')
 def model_status() -> dict[str, Any]:
-    """Health dashboard for all registered LLM providers."""
     return {
         'default_llm': settings.default_llm,
+        'mock_mode': settings.use_mock_provider,
         'providers': orchestrator.model_status(),
     }
 
 
 @app.get('/daily-verse', response_model=VerseOut)
 def daily_verse(db: Session = Depends(get_db)) -> Verse:
-    total = db.scalar(select(func.count(Verse.id)))
-    if not total:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No verses seeded yet')
-
-    day_of_year = date.today().timetuple().tm_yday
-    index = day_of_year % total
-    verse = db.execute(select(Verse).order_by(Verse.id).offset(index).limit(1)).scalar_one()
-    return verse
+    return _daily_verse_from_db(db)
 
 
 @app.get('/moods', response_model=MoodOptionsResponse)
@@ -199,7 +236,7 @@ def mood_guidance(request: MoodGuidanceRequest) -> GuidanceResponse:
         topic_parts.append(request.note)
     topic = ' | '.join(topic_parts)
 
-    cache_key = f'mood:{request.mode}:{topic.strip().lower()}'
+    cache_key = f'mood:{request.mode}:{request.language}:{topic.strip().lower()}'
     cached = cache.get(cache_key)
     if isinstance(cached, GuidanceResponse):
         return cached
@@ -208,7 +245,12 @@ def mood_guidance(request: MoodGuidanceRequest) -> GuidanceResponse:
     if not verses:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No verses found')
 
-    result, _model = orchestrator.generate_guidance(topic=topic, mode=request.mode, verses=verses)
+    result, _model = orchestrator.generate_guidance(
+        topic=topic,
+        mode=request.mode,
+        language=request.language,
+        verses=verses,
+    )
     cache.set(cache_key, result)
     return result
 
@@ -216,7 +258,7 @@ def mood_guidance(request: MoodGuidanceRequest) -> GuidanceResponse:
 @app.post('/ask', response_model=GuidanceResponse)
 def ask(request: AskRequest) -> GuidanceResponse:
     topic = request.question.strip()
-    cache_key = f'ask:{request.mode}:{topic.lower()}'
+    cache_key = f'ask:{request.mode}:{request.language}:{topic.lower()}'
     cached = cache.get(cache_key)
     if isinstance(cached, GuidanceResponse):
         return cached
@@ -225,7 +267,12 @@ def ask(request: AskRequest) -> GuidanceResponse:
     if not verses:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No verses found')
 
-    result, _model = orchestrator.generate_guidance(topic=topic, mode=request.mode, verses=verses)
+    result, _model = orchestrator.generate_guidance(
+        topic=topic,
+        mode=request.mode,
+        language=request.language,
+        verses=verses,
+    )
     cache.set(cache_key, result)
     return result
 
@@ -237,7 +284,7 @@ def chat(request: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Message cannot be empty')
 
     history_text = '|'.join(f'{turn.role}:{turn.content.strip().lower()}' for turn in request.history[-12:])
-    cache_key = f'chat:{request.mode}:{message.lower()}:{hash(history_text)}'
+    cache_key = f'chat:{request.mode}:{request.language}:{message.lower()}:{hash(history_text)}'
     cached = cache.get(cache_key)
     if isinstance(cached, ChatResponse):
         return cached
@@ -252,8 +299,53 @@ def chat(request: ChatRequest) -> ChatResponse:
     result, _model = orchestrator.generate_chat(
         message=message,
         mode=request.mode,
+        language=request.language,
         history=request.history,
         verses=verses,
+    )
+    cache.set(cache_key, result)
+    return result
+
+
+@app.post('/morning-greeting', response_model=MorningGreetingResponse)
+def morning_greeting(request: MorningGreetingRequest, db: Session = Depends(get_db)) -> MorningGreetingResponse:
+    today = date.today()
+    cache_key = f'morning:{today.isoformat()}:{request.mode}:{request.language}'
+    cached = cache.get(cache_key)
+    if isinstance(cached, MorningGreetingResponse):
+        return cached
+
+    verse = _daily_verse_from_db(db)
+    greeting_prompt = (
+        'Create a concise good-morning greeting grounded in the provided Bhagavad Gita verse. '
+        'Keep it warm and practical, and include one uplifting line for the day.'
+    )
+    chat_result, _model = orchestrator.generate_chat(
+        message=greeting_prompt,
+        mode=request.mode,
+        language=request.language,
+        history=[],
+        verses=[verse],
+    )
+
+    selected_verse = chat_result.verses[0] if chat_result.verses else GuidanceVerse(
+        ref=verse.ref,
+        sanskrit=verse.sanskrit,
+        transliteration=verse.transliteration,
+        translation=verse.translation,
+        why_this='Selected as the anchor verse for your morning.',
+    )
+    background = _morning_background(verse.tags, request.mode)
+
+    result = MorningGreetingResponse(
+        date=today,
+        mode=request.mode,
+        language=request.language,
+        greeting=chat_result.reply.strip(),
+        verse=selected_verse,
+        meaning=selected_verse.translation,
+        affirmation=chat_result.action_step,
+        background=background,
     )
     cache.set(cache_key, result)
     return result

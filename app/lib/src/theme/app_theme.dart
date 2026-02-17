@@ -1,15 +1,15 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color _paper = Color(0xFFF5EFE5);
-  static const Color _surface = Color(0xFFFFFBF5);
-  static const Color _ink = Color(0xFF1F1B16);
-  static const Color _inkMuted = Color(0xFF595046);
-  static const Color _primary = Color(0xFF8D4A23);
-  static const Color _secondary = Color(0xFF3E6257);
-  static const Color _outline = Color(0xFFC8BAA6);
-  static const Color _surfaceTint = Color(0xFFECE0CF);
+  static const Color _paper = Color(0xFFF6ECDB);
+  static const Color _surface = Color(0xFFFFFAF1);
+  static const Color _ink = Color(0xFF201A14);
+  static const Color _inkMuted = Color(0xFF635647);
+  static const Color _primary = Color(0xFF92431A);
+  static const Color _secondary = Color(0xFF2E645E);
+  static const Color _outline = Color(0xFFCCB89C);
+  static const Color _surfaceTint = Color(0xFFF0DFC7);
 
   static ThemeData light() {
     const colorScheme = ColorScheme(
@@ -37,7 +37,8 @@ class AppTheme {
       scaffoldBackgroundColor: _paper,
     );
 
-    final textTheme = GoogleFonts.sourceSerif4TextTheme(base.textTheme).copyWith(
+    final textTheme =
+        GoogleFonts.sourceSerif4TextTheme(base.textTheme).copyWith(
       headlineLarge: GoogleFonts.cormorantGaramond(
         textStyle: base.textTheme.headlineLarge,
         fontWeight: FontWeight.w600,
@@ -83,6 +84,15 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         titleTextStyle: textTheme.titleLarge,
       ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: colorScheme.primary,
+          foregroundColor: colorScheme.onPrimary,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: textTheme.labelLarge,
+        ),
+      ),
       cardTheme: CardThemeData(
         elevation: 0,
         color: colorScheme.surface,
@@ -107,7 +117,8 @@ class AppTheme {
           color: colorScheme.onSurfaceVariant,
         ),
         labelStyle: textTheme.bodyMedium,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: colorScheme.outline),
@@ -126,7 +137,8 @@ class AppTheme {
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
           minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: textTheme.labelLarge,
         ),
       ),
@@ -135,7 +147,8 @@ class AppTheme {
           foregroundColor: colorScheme.onSurface,
           minimumSize: const Size.fromHeight(52),
           side: BorderSide(color: colorScheme.outline),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle: textTheme.labelLarge,
         ),
       ),

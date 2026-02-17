@@ -1,38 +1,19 @@
-import json
+﻿import json
 import logging
 from collections.abc import Sequence
-from typing import Literal, Protocol
+from typing import Literal
 
 import httpx
 from pydantic import ValidationError
 
 from ..models import Verse
-from ..schemas import ChatResponse, ChatTurn, GuidanceResponse, GuidanceVerse
+from ..schemas import ChatResponse, ChatTurn, GuidanceResponse, LanguageCode
 from .guidance import extract_json
+from .language import language_instruction
 
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-
-
-def _build_verse_payload(verses: Sequence[Verse], mode: Literal["comfort", "clarity"]) -> list[GuidanceVerse]:
-    payload: list[GuidanceVerse] = []
-    for verse in verses[:3]:
-        reason = (
-            "This verse supports emotional steadiness and self-awareness."
-            if mode == "comfort"
-            else "This verse supports disciplined action and clear thinking."
-        )
-        payload.append(
-            GuidanceVerse(
-                ref=verse.ref,
-                sanskrit=verse.sanskrit,
-                transliteration=verse.transliteration,
-                translation=verse.translation,
-                why_this=reason,
-            )
-        )
-    return payload
 
 
 def _serialize_history(history: Sequence[ChatTurn]) -> list[dict[str, str]]:
@@ -47,8 +28,15 @@ class ClaudeProvider:
         self.model = model
         self.fallback = fallback
 
-    def generate(self, *, topic: str, mode: Literal["comfort", "clarity"], verses: Sequence[Verse]) -> GuidanceResponse:
-        prompt = self._build_prompt(topic=topic, mode=mode, verses=verses)
+    def generate(
+        self,
+        *,
+        topic: str,
+        mode: Literal["comfort", "clarity"],
+        language: LanguageCode,
+        verses: Sequence[Verse],
+    ) -> GuidanceResponse:
+        prompt = self._build_prompt(topic=topic, mode=mode, language=language, verses=verses)
         try:
             response = httpx.post(
                 ANTHROPIC_API_URL,
@@ -71,9 +59,16 @@ class ClaudeProvider:
             return GuidanceResponse.model_validate(parsed)
         except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError, ValidationError) as exc:
             logger.warning("Claude guidance failed, falling back: %s", exc)
-            return self.fallback.generate(topic=topic, mode=mode, verses=verses)
+            return self.fallback.generate(topic=topic, mode=mode, language=language, verses=verses)
 
-    def _build_prompt(self, *, topic: str, mode: str, verses: Sequence[Verse]) -> str:
+    def _build_prompt(
+        self,
+        *,
+        topic: str,
+        mode: str,
+        language: LanguageCode,
+        verses: Sequence[Verse],
+    ) -> str:
         verse_text = [
             {
                 "ref": verse.ref,
@@ -110,8 +105,9 @@ class ClaudeProvider:
         return (
             "You are a compassionate Bhagavad Gita guidance assistant. "
             "Use only the supplied verses. Do not invent verse references. "
-            "Return strict JSON only — no markdown fences, no explanation outside the JSON. "
+            "Return strict JSON only - no markdown fences and no explanation outside JSON. "
             f"Schema: {json.dumps(schema)}\n\n"
+            f"{language_instruction(language)}\n"
             f"Mode: {mode}\n"
             f"Topic: {topic}\n"
             f"Available verses JSON: {json.dumps(verse_text, ensure_ascii=True)}"
@@ -131,10 +127,17 @@ class ClaudeChatProvider:
         *,
         message: str,
         mode: Literal["comfort", "clarity"],
+        language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
     ) -> ChatResponse:
-        prompt = self._build_prompt(message=message, mode=mode, history=history, verses=verses)
+        prompt = self._build_prompt(
+            message=message,
+            mode=mode,
+            language=language,
+            history=history,
+            verses=verses,
+        )
         try:
             response = httpx.post(
                 ANTHROPIC_API_URL,
@@ -157,13 +160,20 @@ class ClaudeChatProvider:
             return ChatResponse.model_validate(parsed)
         except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError, ValidationError) as exc:
             logger.warning("Claude chat failed, falling back: %s", exc)
-            return self.fallback.generate(message=message, mode=mode, history=history, verses=verses)
+            return self.fallback.generate(
+                message=message,
+                mode=mode,
+                language=language,
+                history=history,
+                verses=verses,
+            )
 
     def _build_prompt(
         self,
         *,
         message: str,
         mode: Literal["comfort", "clarity"],
+        language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
     ) -> str:
@@ -196,8 +206,9 @@ class ClaudeChatProvider:
             "You are a compassionate Bhagavad Gita chatbot. "
             "Use only provided verses and never invent verse references. "
             "Keep tone practical, warm, and concise. "
-            "Return strict JSON only — no markdown fences.\n"
+            "Return strict JSON only - no markdown fences.\n"
             f"Schema: {json.dumps(schema)}\n"
+            f"{language_instruction(language)}\n"
             f"Mode: {mode}\n"
             f"Conversation history JSON: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"

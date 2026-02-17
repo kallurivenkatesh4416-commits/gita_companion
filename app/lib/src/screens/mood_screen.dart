@@ -1,9 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import '../widgets/guidance_panel.dart';
+import '../widgets/spiritual_background.dart';
 
 class MoodCheckInScreen extends StatefulWidget {
   const MoodCheckInScreen({super.key});
@@ -27,7 +29,8 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
 
   Future<void> _submit() async {
     if (_selectedMoods.isEmpty) {
-      setState(() => _error = 'Pick at least one mood.');
+      final strings = AppStrings(context.read<AppState>().languageCode);
+      setState(() => _error = strings.t('pick_one_mood'));
       return;
     }
 
@@ -41,14 +44,19 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
     try {
       final response = await appState.repository.moodGuidance(
         moods: _selectedMoods.toList(growable: false),
-        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+        note: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
         mode: appState.guidanceMode,
+        language: appState.languageCode,
       );
+      if (!mounted) return;
       setState(() => _guidance = response);
     } catch (error) {
+      if (!mounted) return;
       setState(() => _error = error.toString());
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -56,23 +64,21 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final colorScheme = Theme.of(context).colorScheme;
+    final strings = AppStrings(appState.languageCode);
+
     final moods = appState.moodOptions.isEmpty
-        ? const <String>['Anxious', 'Overwhelmed', 'Uncertain', 'Sad', 'Hopeful']
+        ? const <String>[
+            'Anxious',
+            'Overwhelmed',
+            'Uncertain',
+            'Sad',
+            'Hopeful'
+          ]
         : appState.moodOptions;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mood Check-in')),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: <Color>[
-              colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-              Theme.of(context).scaffoldBackgroundColor,
-            ],
-          ),
-        ),
+      appBar: AppBar(title: Text(strings.t('mood_title'))),
+      body: SpiritualBackground(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: <Widget>[
@@ -82,11 +88,11 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text('How are you feeling right now?',
+                    Text(strings.t('mood_heading'),
                         style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 4),
                     Text(
-                      'Choose moods and add a short note if useful. You will get verse guidance + a micro-practice.',
+                      strings.t('mood_subtitle'),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
@@ -98,7 +104,7 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
                       children: moods
                           .map(
                             (mood) => FilterChip(
-                              label: Text(mood),
+                              label: Text(strings.moodLabel(mood)),
                               selected: _selectedMoods.contains(mood),
                               onSelected: (selected) {
                                 setState(() {
@@ -117,15 +123,15 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
                     TextField(
                       controller: _noteController,
                       maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Optional note',
-                        hintText: 'Write one line about what is weighing on you.',
+                      decoration: InputDecoration(
+                        labelText: strings.t('mood_note_label'),
+                        hintText: strings.t('mood_note_hint'),
                       ),
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: _loading ? null : _submit,
-                      child: Text(_loading ? 'Loading...' : 'Get Guidance'),
+                      child: Text(_loading ? '...' : strings.t('get_guidance')),
                     ),
                     if (_error != null) ...<Widget>[
                       const SizedBox(height: 10),
@@ -140,9 +146,10 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
             ),
             if (_guidance != null) ...<Widget>[
               const SizedBox(height: 14),
-              GuidancePanel(guidance: _guidance!),
+              GuidancePanel(guidance: _guidance!, strings: strings),
               const SizedBox(height: 12),
-              Text('Selected verses', style: Theme.of(context).textTheme.titleLarge),
+              Text(strings.t('selected_verses'),
+                  style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 8),
               ..._guidance!.verses.map(
                 (verse) => Card(
@@ -151,15 +158,17 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text('Verse ${verse.ref}', style: Theme.of(context).textTheme.titleMedium),
+                        Text('Verse ${verse.ref}',
+                            style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 6),
                         Text(verse.translation),
                         const SizedBox(height: 8),
                         Text(
                           verse.whyThis,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
                         ),
                       ],
                     ),

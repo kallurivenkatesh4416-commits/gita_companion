@@ -1,7 +1,10 @@
-﻿from datetime import datetime
+﻿from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+LanguageCode = Literal["en", "hi", "te", "ta", "kn", "ml", "es"]
 
 
 class VerseOut(BaseModel):
@@ -58,6 +61,7 @@ class GuidanceResponse(BaseModel):
 class AskRequest(BaseModel):
     question: str = Field(min_length=3, max_length=500)
     mode: Literal["comfort", "clarity"] = "clarity"
+    language: LanguageCode = "en"
 
     model_config = ConfigDict(extra="forbid")
 
@@ -72,6 +76,7 @@ class ChatTurn(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=1000)
     mode: Literal["comfort", "clarity"] = "clarity"
+    language: LanguageCode = "en"
     history: list[ChatTurn] = Field(default_factory=list, max_length=12)
 
     model_config = ConfigDict(extra="forbid")
@@ -92,6 +97,7 @@ class MoodGuidanceRequest(BaseModel):
     moods: list[str] = Field(min_length=1, max_length=5)
     note: str | None = Field(default=None, max_length=200)
     mode: Literal["comfort", "clarity"] = "comfort"
+    language: LanguageCode = "en"
 
     model_config = ConfigDict(extra="forbid")
 
@@ -122,5 +128,33 @@ class JourneyOut(BaseModel):
     description: str
     days: int
     status: Literal["not_started", "in_progress", "completed"]
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class MorningGreetingRequest(BaseModel):
+    mode: Literal["comfort", "clarity"] = "comfort"
+    language: LanguageCode = "en"
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class MorningBackground(BaseModel):
+    name: str
+    palette: list[str] = Field(min_length=2, max_length=4)
+    image_prompt: str
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class MorningGreetingResponse(BaseModel):
+    date: date
+    mode: Literal["comfort", "clarity"]
+    language: LanguageCode
+    greeting: str
+    verse: GuidanceVerse
+    meaning: str
+    affirmation: str
+    background: MorningBackground
 
     model_config = ConfigDict(extra="forbid")

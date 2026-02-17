@@ -5,6 +5,9 @@ Monorepo MVP for a cross-platform Gita Companion app with:
 - FastAPI backend (`/backend`)
 - PostgreSQL + pgvector via Docker Compose
 - Local sample Bhagavad Gita verses (`/data/gita_verses_sample.json`)
+- Multi-language UI/chat support (`en`, `hi`, `te`, with extensible language codes)
+- Voice input/output in Flutter chat (speech-to-text + TTS)
+- Persistent local chat history via `SharedPreferences`
 
 ## Monorepo Layout
 
@@ -24,6 +27,7 @@ Monorepo MVP for a cross-platform Gita Companion app with:
   - `GeminiProvider` (optional, only if key set and `USE_MOCK_PROVIDER=false`)
   - `OllamaChatProvider` (optional local LLM for chatbot)
 - In-memory TTL cache for repeated `/ask`, `/moods/guidance`, and `/chat` requests
+- Optional language-aware generation for `/ask`, `/moods/guidance`, and `/chat` via `language` request field
 
 ## API Endpoints
 
@@ -33,6 +37,7 @@ Monorepo MVP for a cross-platform Gita Companion app with:
 - `POST /moods/guidance`
 - `POST /ask`
 - `POST /chat`
+- `POST /morning-greeting`
 - `GET /verses/{id}`
 - `GET /favorites`
 - `POST /favorites`
@@ -78,10 +83,13 @@ docker compose exec backend python scripts/seed_data.py --file /data/gita_verses
 Invoke-RestMethod http://localhost:8000/health
 Invoke-RestMethod http://localhost:8000/daily-verse
 Invoke-RestMethod -Method Post http://localhost:8000/ask `
-  -Body '{"question":"How can I act without anxiety?","mode":"clarity"}' `
+  -Body '{"question":"How can I act without anxiety?","mode":"clarity","language":"en"}' `
   -ContentType 'application/json'
 Invoke-RestMethod -Method Post http://localhost:8000/chat `
-  -Body '{"message":"I feel overwhelmed with work","mode":"comfort","history":[]}' `
+  -Body '{"message":"How do I stay calm under pressure?","mode":"comfort","language":"hi","history":[]}' `
+  -ContentType 'application/json'
+Invoke-RestMethod -Method Post http://localhost:8000/morning-greeting `
+  -Body '{"mode":"comfort","language":"en"}' `
   -ContentType 'application/json'
 ```
 
@@ -111,6 +119,29 @@ Run on Android emulator:
 ```powershell
 flutter run -d emulator-5554 --dart-define API_BASE_URL=http://10.0.2.2:8000
 ```
+
+Run on a physical Android phone (USB):
+
+```powershell
+adb devices
+adb reverse tcp:8000 tcp:8000
+flutter run -d <device_id> --dart-define API_BASE_URL=http://127.0.0.1:8000
+```
+
+## Design Approach
+
+- UI architecture:
+  - Dashboard-first companion UX (not chat-only)
+  - Single `AppState` (`provider`) for profile, language, voice toggles, and persisted chat history
+  - Reusable spiritual visual layer (`SpiritualBackground`) + cohesive saffron/earth theme
+- LLM and RAG architecture:
+  - Retrieval remains backend-only and verse-grounded
+  - Frontend passes `language` preference; backend enforces JSON schema and forwards language instruction to LLM providers
+  - Mock provider remains deterministic fallback for offline reliability
+- Mobile-first evolution path:
+  - Keep current local-first history for MVP speed/privacy
+  - Add backend user accounts + cloud sync later without breaking the current API contract
+  - Add streaming chat responses and per-message source cards as next UX upgrades
 
 ## Backend Local (Without Docker, Optional)
 
@@ -154,4 +185,5 @@ docker compose restart backend
 - Gemini provider is optional and disabled by default.
 - Journeys endpoint/UI is currently a stub.
 - Audio in verse detail is a placeholder.
+- Speech-to-text/TTS behavior can vary by device/browser language engine support.
 - Add proper authentication and user-scoped favorites for production.

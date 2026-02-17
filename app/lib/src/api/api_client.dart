@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -68,11 +68,13 @@ class ApiClient {
   Future<GuidanceResponse> askQuestion({
     required String question,
     required String mode,
+    required String language,
   }) async {
     final response = await _httpClient.post(
       _uri('/ask'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'question': question, 'mode': mode}),
+      body: jsonEncode(
+          {'question': question, 'mode': mode, 'language': language}),
     );
     _ensureOk(response);
     return GuidanceResponse.fromJson(_decodeMap(response.body));
@@ -81,6 +83,7 @@ class ApiClient {
   Future<ChatResponse> chat({
     required String message,
     required String mode,
+    required String language,
     List<ChatTurn> history = const <ChatTurn>[],
   }) async {
     final response = await _httpClient.post(
@@ -90,7 +93,9 @@ class ApiClient {
         <String, dynamic>{
           'message': message,
           'mode': mode,
-          'history': history.map((turn) => turn.toJson()).toList(growable: false),
+          'language': language,
+          'history':
+              history.map((turn) => turn.toJson()).toList(growable: false),
         },
       ),
     );
@@ -101,12 +106,14 @@ class ApiClient {
   Future<GuidanceResponse> moodGuidance({
     required List<String> moods,
     required String mode,
+    required String language,
     String? note,
   }) async {
     final response = await _httpClient.post(
       _uri('/moods/guidance'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'moods': moods, 'note': note, 'mode': mode}),
+      body: jsonEncode(
+          {'moods': moods, 'note': note, 'mode': mode, 'language': language}),
     );
     _ensureOk(response);
     return GuidanceResponse.fromJson(_decodeMap(response.body));
@@ -151,12 +158,29 @@ class ApiClient {
         .toList(growable: false);
   }
 
+  Future<MorningGreeting> fetchMorningGreeting({
+    required String mode,
+    required String language,
+  }) async {
+    final response = await _httpClient.post(
+      _uri('/morning-greeting'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(<String, dynamic>{
+        'mode': mode,
+        'language': language,
+      }),
+    );
+    _ensureOk(response);
+    return MorningGreeting.fromJson(_decodeMap(response.body));
+  }
+
   void _ensureOk(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return;
     }
 
-    throw ApiException('Request failed (${response.statusCode}): ${response.body}');
+    throw ApiException(
+        'Request failed (${response.statusCode}): ${response.body}');
   }
 
   Map<String, dynamic> _decodeMap(String body) {
