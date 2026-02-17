@@ -98,12 +98,36 @@ class HomeScreen extends StatelessWidget {
               _SectionTitle(
                 title: strings.t('morning_greeting'),
                 subtitle: strings.t('morning_greeting_subtitle'),
+                trailing: IconButton(
+                  tooltip: appState.morningGreeting == null
+                      ? strings.t('generate_morning_greeting')
+                      : strings.t('regenerate_morning_greeting'),
+                  onPressed: appState.morningGreetingLoading
+                      ? null
+                      : () => context
+                          .read<AppState>()
+                          .generateMorningGreeting(force: true),
+                  icon: appState.morningGreetingLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                ),
               ),
               const SizedBox(height: 10),
               if (appState.morningGreeting != null)
                 _MorningGreetingCard(
                   greeting: appState.morningGreeting!,
                   strings: strings,
+                  onVerseTap: appState.dailyVerse == null
+                      ? null
+                      : () => Navigator.pushNamed(
+                            context,
+                            '/verse',
+                            arguments: appState.dailyVerse,
+                          ),
                 )
               else
                 Card(
@@ -112,29 +136,6 @@ class HomeScreen extends StatelessWidget {
                     child: Text(strings.t('morning_greeting_empty')),
                   ),
                 ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.tonalIcon(
-                  onPressed: appState.morningGreetingLoading
-                      ? null
-                      : () => context
-                          .read<AppState>()
-                          .generateMorningGreeting(force: true),
-                  icon: appState.morningGreetingLoading
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.wb_sunny_outlined),
-                  label: Text(
-                    appState.morningGreeting == null
-                        ? strings.t('generate_morning_greeting')
-                        : strings.t('regenerate_morning_greeting'),
-                  ),
-                ),
-              ),
               const SizedBox(height: 20),
               _SectionTitle(
                 title: strings.t('companion_tools'),
@@ -265,27 +266,43 @@ class _HeaderPanel extends StatelessWidget {
 class _SectionTitle extends StatelessWidget {
   final String title;
   final String subtitle;
+  final Widget? trailing;
 
-  const _SectionTitle({required this.title, required this.subtitle});
+  const _SectionTitle({
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
               ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
+            ],
+          ),
         ),
+        if (trailing != null) ...<Widget>[
+          const SizedBox(width: 8),
+          trailing!,
+        ],
       ],
     );
   }
@@ -416,17 +433,36 @@ class _GlassTileState extends State<_GlassTile>
   }
 }
 
-class _MorningGreetingCard extends StatelessWidget {
+class _MorningGreetingCard extends StatefulWidget {
   final MorningGreeting greeting;
   final AppStrings strings;
+  final VoidCallback? onVerseTap;
 
   const _MorningGreetingCard({
     required this.greeting,
     required this.strings,
+    this.onVerseTap,
   });
 
   @override
+  State<_MorningGreetingCard> createState() => _MorningGreetingCardState();
+}
+
+class _MorningGreetingCardState extends State<_MorningGreetingCard> {
+  bool _expanded = false;
+
+  String _previewText(String text) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= 160) {
+      return normalized;
+    }
+    return '${normalized.substring(0, 160).trimRight()}...';
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final greeting = widget.greeting;
+    final strings = widget.strings;
     final palette = greeting.background.palette;
     final first = palette.isNotEmpty
         ? _colorFromHex(palette.first)
@@ -453,39 +489,60 @@ class _MorningGreetingCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                greeting.greeting,
+                _expanded ? greeting.greeting : _previewText(greeting.greeting),
+                maxLines: _expanded ? null : 3,
+                overflow: _expanded ? null : TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: const Color(0xFF2A1A0A),
                     ),
               ),
               const SizedBox(height: 10),
-              Text(
-                'Bhagavad Gita ${greeting.verse.ref}',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: const Color(0xFF2A1A0A),
-                    ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  ActionChip(
+                    label: Text('Bhagavad Gita ${greeting.verse.ref}'),
+                    onPressed: widget.onVerseTap,
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
-              Text(
-                greeting.verse.translation,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF3A2A1A),
-                    ),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: const Size(0, 32),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onPressed: () => setState(() => _expanded = !_expanded),
+                icon: Icon(
+                  _expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  _expanded ? strings.t('collapse') : strings.t('expand'),
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                '${strings.t('morning_affirmation')}: ${greeting.affirmation}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF2F241A),
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${strings.t('background_theme')}: ${greeting.background.name}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF2F241A),
-                    ),
-              ),
+              if (_expanded) ...<Widget>[
+                const SizedBox(height: 8),
+                Text(
+                  '${strings.t('morning_affirmation')}: ${greeting.affirmation}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF2F241A),
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${strings.t('background_theme')}: ${greeting.background.name}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF2F241A),
+                      ),
+                ),
+              ],
             ],
           ),
         ),
