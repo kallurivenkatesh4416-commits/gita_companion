@@ -4,6 +4,7 @@
 - Keep diffs small and task-scoped. Do not include unrelated refactors or formatting sweeps.
 - Preserve existing API routes, JSON fields, i18n keys, and DB schema unless the task explicitly requires a change.
 - Favor calm, companion-first UX: clear hierarchy, one primary action on Home, and low visual noise.
+- Always preserve existing UI/UX unless explicitly requested.
 
 ## Project Layout
 - `app/`: Flutter client (`lib/src/screens`, `lib/src/state`, `lib/src/widgets`).
@@ -12,16 +13,32 @@
 - `docker-compose.yml`: local Postgres + backend runtime.
 
 ## Required Commands
-- Flutter analyze:
+- Frontend run (Flutter):
+  - `cd app`
+  - `flutter pub get`
+  - `flutter run -d chrome --dart-define API_BASE_URL=http://localhost:8000`
+  - `flutter run -d <device_id> --dart-define API_BASE_URL=http://127.0.0.1:8000`
+- Frontend build:
+  - `cd app`
+  - `flutter build apk --release`
+- Backend run (Docker Compose):
+  - `docker compose up -d --build`
+  - `Invoke-RestMethod http://localhost:8000/health`
+- Backend run (local optional):
+  - `cd backend`
+  - `python -m venv .venv`
+  - `.\.venv\Scripts\Activate.ps1`
+  - `pip install -r requirements.txt`
+  - `uvicorn app.main:app --reload --port 8000`
+
+## Test Commands
+- Frontend static checks:
   - `cd app`
   - `flutter analyze`
-- Flutter run/build:
-  - `flutter run -d chrome --dart-define API_BASE_URL=http://localhost:8000`
-  - `flutter build apk --release`
-- Backend local compile check:
+  - `flutter test`
+- Backend static checks:
   - `python -m compileall backend`
-- Backend Docker smoke:
-  - `docker compose up -d`
+- Backend API smoke:
   - `Invoke-RestMethod http://localhost:8000/health`
 
 ## Coding Expectations
