@@ -71,6 +71,7 @@ class ClaudeProvider:
     ) -> str:
         verse_text = [
             {
+                "verse_id": verse.id,
                 "ref": verse.ref,
                 "sanskrit": verse.sanskrit,
                 "transliteration": verse.transliteration,
@@ -84,6 +85,7 @@ class ClaudeProvider:
             "topic": "string",
             "verses": [
                 {
+                    "verse_id": 47,
                     "ref": "2.47",
                     "sanskrit": "...",
                     "transliteration": "...",
@@ -179,6 +181,7 @@ class ClaudeChatProvider:
     ) -> str:
         verses_payload = [
             {
+                "verse_id": verse.id,
                 "ref": verse.ref,
                 "sanskrit": verse.sanskrit,
                 "transliteration": verse.transliteration,
@@ -191,6 +194,7 @@ class ClaudeChatProvider:
             "reply": "string",
             "verses": [
                 {
+                    "verse_id": 47,
                     "ref": "2.47",
                     "sanskrit": "...",
                     "transliteration": "...",

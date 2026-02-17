@@ -10,6 +10,7 @@ import 'src/screens/home_screen.dart';
 import 'src/screens/journeys_screen.dart';
 import 'src/screens/mood_screen.dart';
 import 'src/screens/onboarding_screen.dart';
+import 'src/screens/ritual_screen.dart';
 import 'src/screens/settings_screen.dart';
 import 'src/screens/verse_detail_screen.dart';
 import 'src/state/app_state.dart';
@@ -38,6 +39,7 @@ class GitaCompanionApp extends StatelessWidget {
           '/ask': (_) => const AskScreen(),
           '/chat': (_) => const AskScreen(),
           '/mood': (_) => const MoodCheckInScreen(),
+          '/ritual': (_) => const RitualScreen(),
           '/favorites': (_) => const FavoritesScreen(),
           '/journeys': (_) => const JourneysScreen(),
           '/settings': (_) => const SettingsScreen(),

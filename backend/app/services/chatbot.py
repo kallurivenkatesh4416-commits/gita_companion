@@ -37,6 +37,7 @@ def _build_verse_payload(verses: Sequence[Verse], mode: Literal["comfort", "clar
         )
         payload.append(
             GuidanceVerse(
+                verse_id=verse.id,
                 ref=verse.ref,
                 sanskrit=verse.sanskrit,
                 transliteration=verse.transliteration,
@@ -204,6 +205,7 @@ class GeminiChatProvider:
     ) -> str:
         verses_payload = [
             {
+                "verse_id": verse.id,
                 "ref": verse.ref,
                 "sanskrit": verse.sanskrit,
                 "transliteration": verse.transliteration,
@@ -216,6 +218,7 @@ class GeminiChatProvider:
             "reply": "string",
             "verses": [
                 {
+                    "verse_id": 47,
                     "ref": "2.47",
                     "sanskrit": "...",
                     "transliteration": "...",
@@ -295,6 +298,7 @@ class OllamaChatProvider:
     ) -> str:
         verses_payload = [
             {
+                "verse_id": verse.id,
                 "ref": verse.ref,
                 "sanskrit": verse.sanskrit,
                 "transliteration": verse.transliteration,
@@ -308,7 +312,7 @@ class OllamaChatProvider:
             "1) Use only verses in Available verses JSON.\n"
             "2) Do not invent verse numbers.\n"
             "3) Return strict JSON only in this structure:\n"
-            '{"mode":"comfort|clarity","reply":"...","verses":[{"ref":"2.47","sanskrit":"...","transliteration":"...","translation":"...","why_this":"..."}],"action_step":"...","reflection_prompt":"...","safety":{"flagged":false,"message":null}}\n'
+            '{"mode":"comfort|clarity","reply":"...","verses":[{"verse_id":47,"ref":"2.47","sanskrit":"...","transliteration":"...","translation":"...","why_this":"..."}],"action_step":"...","reflection_prompt":"...","safety":{"flagged":false,"message":null}}\n'
             f"{language_instruction(language)}\n"
             f"Mode: {mode}\n"
             f"Conversation history JSON: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"

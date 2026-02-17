@@ -329,6 +329,7 @@ def morning_greeting(request: MorningGreetingRequest, db: Session = Depends(get_
     )
 
     selected_verse = chat_result.verses[0] if chat_result.verses else GuidanceVerse(
+        verse_id=verse.id,
         ref=verse.ref,
         sanskrit=verse.sanskrit,
         transliteration=verse.transliteration,

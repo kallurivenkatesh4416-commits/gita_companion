@@ -76,6 +76,7 @@ class CodexGuidanceProvider:
     ) -> str:
         verse_text = [
             {
+                "verse_id": verse.id,
                 "ref": verse.ref,
                 "sanskrit": verse.sanskrit,
                 "transliteration": verse.transliteration,
@@ -88,6 +89,7 @@ class CodexGuidanceProvider:
             "topic": "string",
             "verses": [
                 {
+                    "verse_id": 47,
                     "ref": "2.47",
                     "sanskrit": "...",
                     "transliteration": "...",
@@ -181,6 +183,7 @@ class CodexChatProvider:
     ) -> str:
         verses_payload = [
             {
+                "verse_id": verse.id,
                 "ref": verse.ref,
                 "sanskrit": verse.sanskrit,
                 "transliteration": verse.transliteration,
@@ -193,6 +196,7 @@ class CodexChatProvider:
             "reply": "string",
             "verses": [
                 {
+                    "verse_id": 47,
                     "ref": "2.47",
                     "sanskrit": "...",
                     "transliteration": "...",

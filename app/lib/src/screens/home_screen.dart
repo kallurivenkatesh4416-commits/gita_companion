@@ -87,6 +87,40 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, '/ritual'),
+                  icon: const Icon(Icons.self_improvement_outlined),
+                  label: Text(strings.t('start_today_60_sec')),
+                ),
+              ),
+              if (appState.ritualCompletedToday) ...<Widget>[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .secondaryContainer
+                          .withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      strings.t('done_today'),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSecondaryContainer,
+                          ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Text(
                 strings.t('daily_verse_update_note'),

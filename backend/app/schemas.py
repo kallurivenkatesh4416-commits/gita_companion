@@ -21,6 +21,7 @@ class VerseOut(BaseModel):
 
 
 class GuidanceVerse(BaseModel):
+    verse_id: int
     ref: str
     sanskrit: str
     transliteration: str

@@ -20,6 +20,8 @@ class AppState extends ChangeNotifier {
   static const _prefChatHistory = 'chat_history';
   static const _prefMorningGreeting = 'morning_greeting';
   static const _prefMorningGreetingLocalDate = 'morning_greeting_local_date';
+  static const _prefRitualLastCompletedDate = 'ritual_last_completed_local_date';
+  static const _prefRitualReflections = 'ritual_reflections';
 
   final GitaRepository repository;
 
@@ -46,6 +48,10 @@ class AppState extends ChangeNotifier {
   List<FavoriteItem> favorites = const <FavoriteItem>[];
   List<Journey> journeys = const <Journey>[];
   List<ChatHistoryEntry> chatHistory = const <ChatHistoryEntry>[];
+  String? ritualLastCompletedDate;
+  List<String> ritualReflections = const <String>[];
+
+  bool get ritualCompletedToday => ritualLastCompletedDate == _todayKey();
 
   AppState({required this.repository});
 
@@ -70,6 +76,8 @@ class AppState extends ChangeNotifier {
     chatHistory = _decodeChatHistory(prefs.getString(_prefChatHistory));
     morningGreeting =
         _decodeMorningGreeting(prefs.getString(_prefMorningGreeting));
+    ritualLastCompletedDate = prefs.getString(_prefRitualLastCompletedDate);
+    ritualReflections = _decodeStringList(prefs.getString(_prefRitualReflections));
 
     await Future.wait(<Future<void>>[
       refreshDailyVerse(),
@@ -285,6 +293,21 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> completeRitual({String? reflection}) async {
+    final prefs = await SharedPreferences.getInstance();
+    ritualLastCompletedDate = _todayKey();
+    await prefs.setString(_prefRitualLastCompletedDate, ritualLastCompletedDate!);
+
+    final text = reflection?.trim();
+    if (text != null && text.isNotEmpty) {
+      final updated = <String>[text, ...ritualReflections];
+      ritualReflections = updated.take(30).toList(growable: false);
+      await prefs.setString(_prefRitualReflections, jsonEncode(ritualReflections));
+    }
+
+    notifyListeners();
+  }
+
   Future<void> deleteLocalData() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefOnboardingComplete);
@@ -298,6 +321,8 @@ class AppState extends ChangeNotifier {
     await prefs.remove(_prefChatHistory);
     await prefs.remove(_prefMorningGreeting);
     await prefs.remove(_prefMorningGreetingLocalDate);
+    await prefs.remove(_prefRitualLastCompletedDate);
+    await prefs.remove(_prefRitualReflections);
 
     onboardingComplete = false;
     anonymousMode = true;
@@ -310,6 +335,8 @@ class AppState extends ChangeNotifier {
     chatHistory = const <ChatHistoryEntry>[];
     morningGreeting = null;
     morningGreetingLoading = false;
+    ritualLastCompletedDate = null;
+    ritualReflections = const <String>[];
     dailyVerseError = null;
     moodOptionsError = null;
     favoritesError = null;
@@ -382,6 +409,24 @@ class AppState extends ChangeNotifier {
       return MorningGreeting.fromJson(decoded);
     } catch (_) {
       return null;
+    }
+  }
+
+  List<String> _decodeStringList(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return const <String>[];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List<dynamic>) {
+        return const <String>[];
+      }
+      return decoded
+          .map((item) => item.toString().trim())
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return const <String>[];
     }
   }
 

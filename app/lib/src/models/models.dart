@@ -36,6 +36,7 @@ class Verse {
 }
 
 class GuidanceVerse {
+  final int? verseId;
   final String ref;
   final String sanskrit;
   final String transliteration;
@@ -43,6 +44,7 @@ class GuidanceVerse {
   final String whyThis;
 
   const GuidanceVerse({
+    this.verseId,
     required this.ref,
     required this.sanskrit,
     required this.transliteration,
@@ -52,6 +54,7 @@ class GuidanceVerse {
 
   factory GuidanceVerse.fromJson(Map<String, dynamic> json) {
     return GuidanceVerse(
+      verseId: json['verse_id'] as int?,
       ref: json['ref'] as String,
       sanskrit: json['sanskrit'] as String,
       transliteration: json['transliteration'] as String,
@@ -61,13 +64,17 @@ class GuidanceVerse {
   }
 
   Map<String, dynamic> toJson() {
-    return <String, dynamic>{
+    final payload = <String, dynamic>{
       'ref': ref,
       'sanskrit': sanskrit,
       'transliteration': transliteration,
       'translation': translation,
       'why_this': whyThis,
     };
+    if (verseId != null) {
+      payload['verse_id'] = verseId;
+    }
+    return payload;
   }
 }
 
