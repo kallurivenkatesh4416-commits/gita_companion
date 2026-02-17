@@ -177,6 +177,16 @@ docker compose restart backend
 - Do not commit real API keys.
 - Keep `backend/.env` local only.
 - `backend/.env.example` contains placeholders.
+- Keep all model-provider secrets backend-only (`backend/.env` or process env vars). The Flutter client must call backend routes only.
+
+### Key Rotation (Required After Exposure)
+
+If any key was exposed, rotate/revoke it first, then update local env values.
+
+1. Anthropic: Console -> API Keys -> revoke the exposed key -> create a new key -> set `ANTHROPIC_API_KEY` in `backend/.env`.
+2. OpenAI: Platform -> API Keys -> delete the exposed key -> create a new key -> set `OPENAI_API_KEY` in `backend/.env`.
+3. Gemini: Google AI Studio -> API Keys -> delete the exposed key -> create a new key -> set `GEMINI_API_KEY` in `backend/.env`.
+4. Restart backend after updates: `docker compose up -d --build` (or restart your local `uvicorn` process).
 
 ## Known Limitations / Next Steps
 
