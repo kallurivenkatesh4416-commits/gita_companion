@@ -44,21 +44,18 @@ class HomeScreen extends StatelessWidget {
         child: RefreshIndicator(
           onRefresh: () => appState.refreshDailyVerse(),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 104),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 104),
             children: <Widget>[
               _HeaderPanel(
                 strings: strings,
                 mode: appState.guidanceMode,
-                identityLine: appState.privacyAnonymous
-                    ? strings.t('anonymous_active')
-                    : '${strings.t('signed_in_as')} ${appState.email ?? 'user'}',
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               _SectionTitle(
                 title: strings.t('daily_verse'),
                 subtitle: strings.t('daily_verse_subtitle'),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               if (appState.dailyVerse != null)
                 VersePreviewCard(
                   verse: appState.dailyVerse!,
@@ -90,19 +87,19 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               Text(
                 strings.t('daily_verse_update_note'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               _SectionTitle(
                 title: strings.t('morning_greeting'),
                 subtitle: strings.t('morning_greeting_subtitle'),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               if (appState.morningGreeting != null)
                 _MorningGreetingCard(
                   greeting: appState.morningGreeting!,
@@ -115,7 +112,7 @@ class HomeScreen extends StatelessWidget {
                     child: Text(strings.t('morning_greeting_empty')),
                   ),
                 ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton.tonalIcon(
@@ -138,12 +135,12 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               _SectionTitle(
                 title: strings.t('companion_tools'),
                 subtitle: strings.t('companion_tools_subtitle'),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               GridView.count(
                 shrinkWrap: true,
                 crossAxisCount:
@@ -191,20 +188,18 @@ class HomeScreen extends StatelessWidget {
 class _HeaderPanel extends StatelessWidget {
   final AppStrings strings;
   final String mode;
-  final String identityLine;
 
   const _HeaderPanel({
     required this.strings,
     required this.mode,
-    required this.identityLine,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -224,9 +219,8 @@ class _HeaderPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          // Mode badge
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(99),
@@ -235,17 +229,16 @@ class _HeaderPanel extends StatelessWidget {
               mode == 'comfort'
                   ? strings.t('comfort_mode')
                   : strings.t('clarity_mode'),
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: Colors.white,
                   ),
             ),
           ),
-          const SizedBox(height: 16),
-          // Serif greeting
+          const SizedBox(height: 12),
           Text(
             strings.t('good_to_see_you'),
             style: GoogleFonts.playfairDisplay(
-              fontSize: 26,
+              fontSize: 22,
               fontWeight: FontWeight.w600,
               color: Colors.white,
               height: 1.2,
@@ -253,15 +246,6 @@ class _HeaderPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            identityLine,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.85),
-                ),
-          ),
-          const SizedBox(height: 12),
-          Divider(color: Colors.white.withValues(alpha: 0.2), height: 1),
-          const SizedBox(height: 12),
           Text(
             strings.t('stay_intention'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -289,11 +273,16 @@ class _SectionTitle extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 2),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+        const SizedBox(height: 4),
         Text(
           subtitle,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
         ),
