@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../models/models.dart';
+import 'fading_divider.dart';
 
 class VersePreviewCard extends StatelessWidget {
   final Verse verse;
@@ -59,12 +60,20 @@ class VersePreviewCard extends StatelessWidget {
                           color: colorScheme.primary.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text(
-                          'Bhagavad Gita ${verse.ref}',
-                          style:
-                              Theme.of(context).textTheme.labelLarge?.copyWith(
+                        child: Hero(
+                          tag: _heroTag(verse),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: Text(
+                              'Bhagavad Gita ${verse.ref}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(
                                     color: colorScheme.primary,
                                   ),
+                            ),
+                          ),
                         ),
                       ),
                       const Spacer(),
@@ -97,6 +106,10 @@ class VersePreviewCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           height: 1.6,
                         ),
+                  ),
+                  const FadingDivider(
+                    margin: EdgeInsets.symmetric(vertical: 6),
+                    thickness: 0.9,
                   ),
                   const SizedBox(height: 10),
                   // Transliteration — smaller, italic, secondary hierarchy
@@ -132,4 +145,9 @@ class VersePreviewCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _heroTag(Verse verse) {
+  final token = verse.id > 0 ? verse.id.toString() : verse.ref;
+  return 'verse-ref-$token';
 }

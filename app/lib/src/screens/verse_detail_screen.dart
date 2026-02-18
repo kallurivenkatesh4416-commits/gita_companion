@@ -6,6 +6,7 @@ import '../models/models.dart';
 import '../services/share_card_service.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
+import '../widgets/fading_divider.dart';
 import '../widgets/spiritual_background.dart';
 
 class VerseDetailScreen extends StatefulWidget {
@@ -93,7 +94,13 @@ class _VerseDetailScreenState extends State<VerseDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Verse ${_verse.ref}'),
+        title: Hero(
+          tag: _heroTag(_verse),
+          child: Material(
+            color: Colors.transparent,
+            child: Text('BG ${_verse.ref}'),
+          ),
+        ),
       ),
       body: SpiritualBackground(
         animate: false,
@@ -113,6 +120,10 @@ class _VerseDetailScreenState extends State<VerseDetailScreen> {
                   style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               Text(_verse.translation),
+              const FadingDivider(
+                margin: EdgeInsets.symmetric(vertical: 10),
+                thickness: 0.9,
+              ),
               const SizedBox(height: 16),
               Card(
                 child: ExpansionTile(
@@ -189,12 +200,26 @@ class _VerseDetailScreenState extends State<VerseDetailScreen> {
                 ],
               ),
               const SizedBox(height: 8),
+              const FadingDivider(
+                margin: EdgeInsets.symmetric(vertical: 6),
+                thickness: 0.9,
+              ),
+              const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: _verse.tags
                     .map(
                       (tag) => ActionChip(
+                        side: BorderSide(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outline
+                              .withValues(alpha: 0.32),
+                          width: 0.5,
+                        ),
+                        backgroundColor:
+                            Theme.of(context).colorScheme.surface.withValues(alpha: 0.5),
                         label: Text(tag),
                         onPressed: () => Navigator.pushNamed(
                           context,
@@ -258,6 +283,11 @@ class _VerseDetailScreenState extends State<VerseDetailScreen> {
       ),
     );
   }
+}
+
+String _heroTag(Verse verse) {
+  final token = verse.id > 0 ? verse.id.toString() : verse.ref;
+  return 'verse-ref-$token';
 }
 
 class _VerseQuickAction extends StatelessWidget {

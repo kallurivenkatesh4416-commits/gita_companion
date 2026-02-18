@@ -78,11 +78,17 @@ class HeroVerseCard extends StatelessWidget {
                         color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(999),
                       ),
-                      child: Text(
-                        'BG ${verse.ref}',
-                        style: textTheme.labelLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                      child: Hero(
+                        tag: _heroTag(verse),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Text(
+                            'BG ${verse.ref}',
+                            style: textTheme.labelLarge?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -145,4 +151,9 @@ class HeroVerseCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _heroTag(Verse verse) {
+  final token = verse.id > 0 ? verse.id.toString() : verse.ref;
+  return 'verse-ref-$token';
 }

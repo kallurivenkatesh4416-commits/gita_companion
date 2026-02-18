@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -8,12 +9,16 @@ class SpiritualBackground extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final bool animate;
+  final ScrollController? parallaxController;
+  final bool enableParallax;
 
   const SpiritualBackground({
     super.key,
     required this.child,
     this.padding,
     this.animate = true,
+    this.parallaxController,
+    this.enableParallax = false,
   });
 
   @override
@@ -21,12 +26,26 @@ class SpiritualBackground extends StatefulWidget {
 }
 
 class _SpiritualBackgroundState extends State<SpiritualBackground>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
+  final ValueNotifier<double> _parallaxOffset = ValueNotifier<double>(0);
+  Timer? _timePhaseTimer;
+  int _timeBucket = -1;
+  List<Color> _lightGradient = const <Color>[
+    Color(0xFFF8F1E7),
+    Color(0xFFF3E8D6),
+    Color(0xFFEEE3D3),
+  ];
+  List<Color> _darkGradient = const <Color>[
+    Color(0xFF1A1410),
+    Color(0xFF231B14),
+    Color(0xFF2A221A),
+  ];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 120),
@@ -34,6 +53,12 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
     if (widget.animate) {
       _controller.repeat();
     }
+    _attachParallaxController();
+    _refreshTimeAwareGradients(force: true);
+    _timePhaseTimer = Timer.periodic(
+      const Duration(minutes: 12),
+      (_) => _refreshTimeAwareGradients(),
+    );
   }
 
   @override
@@ -48,10 +73,26 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
       _controller.stop();
       _controller.value = 0;
     }
+    if (oldWidget.parallaxController != widget.parallaxController ||
+        oldWidget.enableParallax != widget.enableParallax) {
+      _detachParallaxController(oldWidget.parallaxController);
+      _attachParallaxController();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshTimeAwareGradients(force: true);
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timePhaseTimer?.cancel();
+    _detachParallaxController(widget.parallaxController);
+    _parallaxOffset.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -59,100 +100,280 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final gradientColors = isDark ? _darkGradient : _lightGradient;
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 1.2,
-          colors: isDark
-              ? const <Color>[
-                  Color(0xFF1A1410),
-                  Color(0xFF231B14),
-                  Color(0xFF2A221A),
-                ]
-              : const <Color>[
-                  Color(0xFFF8F1E7),
-                  Color(0xFFF3E8D6),
-                  Color(0xFFEEE3D3),
-                ],
-          stops: <double>[0.0, 0.55, 1.0],
-        ),
+    return AnimatedBuilder(
+      animation: Listenable.merge(<Listenable>[_controller, _parallaxOffset]),
+      child: Padding(
+        padding: widget.padding ?? EdgeInsets.zero,
+        child: widget.child,
       ),
-      child: Stack(
-        children: <Widget>[
-          // Soft glow orbs
-          Positioned(
-            top: -100,
-            right: -30,
-            child: _GlowOrb(
-              size: 260,
-              color: (isDark ? const Color(0xFFD4915A) : const Color(0xFFE7B86D))
-                  .withValues(alpha: isDark ? 0.16 : 0.22),
+      builder: (context, child) {
+        final parallax = widget.enableParallax ? _parallaxOffset.value : 0;
+
+        return Container(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment.center,
+              radius: 1.2,
+              colors: gradientColors,
+              stops: const <double>[0.0, 0.55, 1.0],
             ),
           ),
-          Positioned(
-            bottom: -130,
-            left: -40,
-            child: _GlowOrb(
-              size: 280,
-              color: (isDark ? const Color(0xFFA5653F) : const Color(0xFFB95A33))
-                  .withValues(alpha: isDark ? 0.1 : 0.12),
-            ),
-          ),
-          // Mandala rings
-          Positioned.fill(
-            child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) {
-                  return Transform.rotate(
-                    angle: _controller.value * 2 * pi,
-                    child: CustomPaint(
-                      painter: _MandalaPainter(dark: isDark),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          // Floating dust motes
-          if (widget.animate)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: AnimatedBuilder(
-                  animation: _controller,
-                  builder: (context, _) {
-                    return CustomPaint(
-                      painter: _DustMotePainter(
-                        progress: _controller.value,
-                        dark: isDark,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            )
-          else
-            Positioned.fill(
-              child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _DustMotePainter(
-                    progress: 0,
-                    dark: isDark,
+          child: Stack(
+            children: <Widget>[
+              Positioned(
+                top: -100,
+                right: -30,
+                child: Transform.translate(
+                  offset: Offset(parallax * 0.02, -parallax * 0.06),
+                  child: _GlowOrb(
+                    size: 260,
+                    color:
+                        (isDark ? const Color(0xFFD4915A) : const Color(0xFFE7B86D))
+                            .withValues(alpha: isDark ? 0.16 : 0.22),
                   ),
                 ),
               ),
-            ),
-          // Content
-          Padding(
-            padding: widget.padding ?? EdgeInsets.zero,
-            child: widget.child,
+              Positioned(
+                bottom: -130,
+                left: -40,
+                child: Transform.translate(
+                  offset: Offset(-parallax * 0.015, -parallax * 0.1),
+                  child: _GlowOrb(
+                    size: 280,
+                    color:
+                        (isDark ? const Color(0xFFA5653F) : const Color(0xFFB95A33))
+                            .withValues(alpha: isDark ? 0.1 : 0.12),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Transform.translate(
+                    offset: Offset(0, -parallax * 0.16),
+                    child: Transform.rotate(
+                      angle: _controller.value * 2 * pi,
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _MandalaPainter(dark: isDark),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _DustMotePainter(
+                        progress: widget.animate ? _controller.value : 0,
+                        dark: isDark,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              child!,
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
+
+  void _attachParallaxController() {
+    if (!widget.enableParallax || widget.parallaxController == null) {
+      _parallaxOffset.value = 0;
+      return;
+    }
+    widget.parallaxController!.addListener(_handleParallaxScroll);
+    _handleParallaxScroll();
+  }
+
+  void _detachParallaxController(ScrollController? controller) {
+    controller?.removeListener(_handleParallaxScroll);
+  }
+
+  void _handleParallaxScroll() {
+    final controller = widget.parallaxController;
+    if (!widget.enableParallax || controller == null || !controller.hasClients) {
+      if (_parallaxOffset.value != 0) {
+        _parallaxOffset.value = 0;
+      }
+      return;
+    }
+    final next = controller.offset;
+    if ((next - _parallaxOffset.value).abs() > 0.4) {
+      _parallaxOffset.value = next;
+    }
+  }
+
+  void _refreshTimeAwareGradients({bool force = false}) {
+    final now = DateTime.now();
+    final bucket = now.hour * 2 + (now.minute ~/ 30);
+    if (!force && bucket == _timeBucket) {
+      return;
+    }
+    _timeBucket = bucket;
+    final decimalHour = now.hour + (now.minute / 60.0);
+    final light = _paletteForHour(decimalHour, dark: false);
+    final dark = _paletteForHour(decimalHour, dark: true);
+    if (!mounted) {
+      _lightGradient = light;
+      _darkGradient = dark;
+      return;
+    }
+    setState(() {
+      _lightGradient = light;
+      _darkGradient = dark;
+    });
+  }
+
+  List<Color> _paletteForHour(double hour, {required bool dark}) {
+    final anchors = dark ? _darkAnchors : _lightAnchors;
+    final normalizedHour = hour.clamp(0.0, 23.99);
+
+    _PaletteAnchor start = anchors.first;
+    _PaletteAnchor end = anchors.last;
+
+    for (var i = 0; i < anchors.length - 1; i++) {
+      final a = anchors[i];
+      final b = anchors[i + 1];
+      if (normalizedHour >= a.hour && normalizedHour < b.hour) {
+        start = a;
+        end = b;
+        break;
+      }
+    }
+
+    final span = (end.hour - start.hour).clamp(0.01, 24.0);
+    final t = ((normalizedHour - start.hour) / span).clamp(0.0, 1.0);
+    return List<Color>.generate(
+      3,
+      (index) => Color.lerp(start.colors[index], end.colors[index], t)!,
+      growable: false,
+    );
+  }
+
+  static const List<_PaletteAnchor> _lightAnchors = <_PaletteAnchor>[
+    _PaletteAnchor(
+      hour: 0,
+      colors: <Color>[
+        Color(0xFFE7DFD5),
+        Color(0xFFD9CFC3),
+        Color(0xFFCDC0B3),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 5,
+      colors: <Color>[
+        Color(0xFFBBAAA0),
+        Color(0xFFCCB59D),
+        Color(0xFFE1CCB3),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 7,
+      colors: <Color>[
+        Color(0xFFF6EBDD),
+        Color(0xFFF2E3CC),
+        Color(0xFFECDABF),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 11,
+      colors: <Color>[
+        Color(0xFFF8F1E7),
+        Color(0xFFF3E8D6),
+        Color(0xFFEEE3D3),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 17,
+      colors: <Color>[
+        Color(0xFFF2E3D1),
+        Color(0xFFE7D0BA),
+        Color(0xFFD9B89A),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 20,
+      colors: <Color>[
+        Color(0xFFE5D2C5),
+        Color(0xFFD5BCB0),
+        Color(0xFFC7AEA3),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 24,
+      colors: <Color>[
+        Color(0xFFE7DFD5),
+        Color(0xFFD9CFC3),
+        Color(0xFFCDC0B3),
+      ],
+    ),
+  ];
+
+  static const List<_PaletteAnchor> _darkAnchors = <_PaletteAnchor>[
+    _PaletteAnchor(
+      hour: 0,
+      colors: <Color>[
+        Color(0xFF111725),
+        Color(0xFF181F2D),
+        Color(0xFF1F2634),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 5,
+      colors: <Color>[
+        Color(0xFF1E2430),
+        Color(0xFF2A2D33),
+        Color(0xFF353036),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 7,
+      colors: <Color>[
+        Color(0xFF2A2627),
+        Color(0xFF352D2A),
+        Color(0xFF423630),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 11,
+      colors: <Color>[
+        Color(0xFF1A1410),
+        Color(0xFF231B14),
+        Color(0xFF2A221A),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 17,
+      colors: <Color>[
+        Color(0xFF221A15),
+        Color(0xFF2A2019),
+        Color(0xFF34271E),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 20,
+      colors: <Color>[
+        Color(0xFF1C1A22),
+        Color(0xFF22202A),
+        Color(0xFF292731),
+      ],
+    ),
+    _PaletteAnchor(
+      hour: 24,
+      colors: <Color>[
+        Color(0xFF111725),
+        Color(0xFF181F2D),
+        Color(0xFF1F2634),
+      ],
+    ),
+  ];
 }
 
 class _GlowOrb extends StatelessWidget {
@@ -270,5 +491,15 @@ class _Mote {
     required this.size,
     required this.opacity,
     required this.phaseOffset,
+  });
+}
+
+class _PaletteAnchor {
+  final double hour;
+  final List<Color> colors;
+
+  const _PaletteAnchor({
+    required this.hour,
+    required this.colors,
   });
 }

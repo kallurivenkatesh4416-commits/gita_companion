@@ -14,8 +14,27 @@ import '../widgets/app_bottom_nav.dart';
 import '../widgets/hero_verse_card.dart';
 import '../widgets/spiritual_background.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,14 +75,22 @@ class HomeScreen extends StatelessWidget {
       ),
       body: SpiritualBackground(
         animate: true,
+        enableParallax: true,
+        parallaxController: _scrollController,
         child: RefreshIndicator(
           onRefresh: () => appState.refreshDailyVerse(),
           child: ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
             children: <Widget>[
-              _HeaderPanel(
-                strings: strings,
-                mode: appState.guidanceMode,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: -16),
+                child: _HeaderPanelMask(
+                  child: _HeaderPanel(
+                    strings: strings,
+                    mode: appState.guidanceMode,
+                  ),
+                ),
               ),
               const SizedBox(height: 14),
               _SectionTitle(
@@ -438,6 +465,32 @@ class _HeaderPanel extends StatelessWidget {
   }
 }
 
+class _HeaderPanelMask extends StatelessWidget {
+  final Widget child;
+
+  const _HeaderPanelMask({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) {
+        return const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[
+            Colors.white,
+            Colors.white,
+            Colors.transparent,
+          ],
+          stops: <double>[0, 0.8, 1],
+        ).createShader(bounds);
+      },
+      child: child,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Section Title
 // ---------------------------------------------------------------------------
@@ -470,7 +523,7 @@ class _SectionTitle extends StatelessWidget {
                         ? Theme.of(context).textTheme.titleLarge
                         : Theme.of(context).textTheme.titleMedium)
                     ?.copyWith(
-                  fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w600,
+                  fontWeight: isPrimary ? FontWeight.w700 : FontWeight.w500,
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
@@ -559,6 +612,8 @@ class _GlassTileState extends State<_GlassTile>
     with SingleTickerProviderStateMixin {
   late final AnimationController _scaleController;
   late final Animation<double> _scaleAnimation;
+  Alignment _highlightAlignment = const Alignment(-0.45, -0.8);
+  bool _highlightVisible = false;
 
   @override
   void initState() {
@@ -581,15 +636,38 @@ class _GlassTileState extends State<_GlassTile>
     super.dispose();
   }
 
-  void _onTapDown(TapDownDetails _) => _scaleController.forward();
+  void _onTapDown(TapDownDetails details) {
+    _scaleController.forward();
+    if (details.globalPosition != Offset.zero) {
+      _updateHighlight(details.globalPosition, visible: true);
+    }
+  }
 
   void _onTapUp(TapUpDetails _) {
     _scaleController.reverse();
     HapticFeedback.lightImpact();
+    setState(() => _highlightVisible = false);
     widget.onTap();
   }
 
-  void _onTapCancel() => _scaleController.reverse();
+  void _onTapCancel() {
+    _scaleController.reverse();
+    setState(() => _highlightVisible = false);
+  }
+
+  void _updateHighlight(Offset globalPosition, {required bool visible}) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || box.size.isEmpty) {
+      return;
+    }
+    final local = box.globalToLocal(globalPosition);
+    final dx = ((local.dx / box.size.width) * 2 - 1).clamp(-1.0, 1.0);
+    final dy = ((local.dy / box.size.height) * 2 - 1).clamp(-1.0, 1.0);
+    setState(() {
+      _highlightAlignment = Alignment(dx, dy);
+      _highlightVisible = visible;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -601,76 +679,116 @@ class _GlassTileState extends State<_GlassTile>
           child: child,
         );
       },
-      child: GestureDetector(
-        onTapDown: _onTapDown,
-        onTapUp: _onTapUp,
-        onTapCancel: _onTapCancel,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: <Color>[
-                Colors.white.withValues(alpha: 0.34),
-                Colors.white.withValues(alpha: 0.12),
-              ],
-            ),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: widget.iconColor.withValues(alpha: 0.18),
-                blurRadius: 18,
-                spreadRadius: -4,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(1),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(19),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(19),
+      child: MouseRegion(
+        onHover: (event) => _updateHighlight(event.position, visible: true),
+        onExit: (_) => setState(() => _highlightVisible = false),
+        child: Listener(
+          onPointerDown: (event) => _updateHighlight(event.position, visible: true),
+          onPointerMove: (event) => _updateHighlight(event.position, visible: true),
+          onPointerHover: (event) => _updateHighlight(event.position, visible: true),
+          child: GestureDetector(
+            onTapDown: _onTapDown,
+            onTapUp: _onTapUp,
+            onTapCancel: _onTapCancel,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    Colors.white.withValues(alpha: 0.34),
+                    Colors.white.withValues(alpha: 0.12),
+                  ],
+                ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: widget.iconColor.withValues(alpha: 0.18),
+                    blurRadius: 18,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 8),
                   ),
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: widget.iconColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          widget.icon,
-                          color: widget.iconColor,
-                          size: 20,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        widget.title,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(1),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(19),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                    child: Stack(
+                      children: <Widget>[
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(19),
                             ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Container(
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: widget.iconColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    widget.icon,
+                                    color: widget.iconColor,
+                                    size: 20,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  widget.title,
+                                  style:
+                                      Theme.of(context).textTheme.titleSmall?.copyWith(
+                                            color:
+                                                Theme.of(context).colorScheme.onSurface,
+                                          ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.subtitle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style:
+                                      Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                ),
+                              ],
                             ),
-                      ),
-                    ],
+                          ),
+                        ),
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 180),
+                              opacity: _highlightVisible ? 1 : 0.35,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    center: _highlightAlignment,
+                                    radius: 0.75,
+                                    colors: <Color>[
+                                      Colors.white.withValues(alpha: 0.2),
+                                      Colors.white.withValues(alpha: 0.06),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const <double>[0.0, 0.42, 1.0],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

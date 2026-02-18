@@ -8,8 +8,8 @@ class AppTheme {
   static const Color _inkMuted = Color(0xFF635647);
   static const Color _primary = Color(0xFF92431A);
   static const Color _secondary = Color(0xFF2E645E);
+  static const Color _tertiary = Color(0xFFB55F2A);
   static const Color _outline = Color(0xFFCCB89C);
-  static const Color _fabLight = Color(0xFFB55F2A);
   static const Color _surfaceTint = Color(0xFFF0DFC7);
   static const Color _darkBackground = Color(0xFF1A1410);
   static const Color _darkSurface = Color(0xFF2A221A);
@@ -17,8 +17,8 @@ class AppTheme {
   static const Color _darkInkMuted = Color(0xFFC8B79E);
   static const Color _darkPrimary = Color(0xFFD4915A);
   static const Color _darkSecondary = Color(0xFF77A99F);
+  static const Color _darkTertiary = Color(0xFFD4915A);
   static const Color _darkOutline = Color(0xFF594B3D);
-  static const Color _fabDark = Color(0xFFD4915A);
   static const Color _darkSurfaceTint = Color(0xFF3A2F24);
 
   static ThemeData light() {
@@ -28,10 +28,14 @@ class AppTheme {
       onPrimary: Colors.white,
       secondary: _secondary,
       onSecondary: Colors.white,
+      tertiary: _tertiary,
+      onTertiary: Colors.white,
       error: Color(0xFFB3261E),
       onError: Colors.white,
       surface: _surface,
       onSurface: _ink,
+      tertiaryContainer: Color(0xFFF3D3B8),
+      onTertiaryContainer: Color(0xFF2D160B),
       surfaceContainerHighest: _surfaceTint,
       onSurfaceVariant: _inkMuted,
       outline: _outline,
@@ -69,14 +73,18 @@ class AppTheme {
       ),
       titleMedium: GoogleFonts.sourceSans3(
         textStyle: base.textTheme.titleMedium,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
       titleSmall: GoogleFonts.sourceSans3(
         textStyle: base.textTheme.titleSmall,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
-      bodyLarge: GoogleFonts.sourceSans3(textStyle: base.textTheme.bodyLarge),
-      bodyMedium: GoogleFonts.sourceSans3(textStyle: base.textTheme.bodyMedium),
+      bodyLarge: GoogleFonts.sourceSans3(
+        textStyle: base.textTheme.bodyLarge?.copyWith(height: 1.6),
+      ),
+      bodyMedium: GoogleFonts.sourceSans3(
+        textStyle: base.textTheme.bodyMedium?.copyWith(height: 1.55),
+      ),
       bodySmall: GoogleFonts.sourceSans3(textStyle: base.textTheme.bodySmall),
       labelLarge: GoogleFonts.sourceSans3(
         textStyle: base.textTheme.labelLarge,
@@ -116,13 +124,14 @@ class AppTheme {
           ),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: _fabLight,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        focusElevation: 1,
-        hoverElevation: 1,
-        highlightElevation: 1,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: colorScheme.tertiaryContainer,
+        foregroundColor: colorScheme.onTertiaryContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 2.5,
+        focusElevation: 3,
+        hoverElevation: 3,
+        highlightElevation: 3,
       ),
       chipTheme: base.chipTheme.copyWith(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -188,10 +197,14 @@ class AppTheme {
       onPrimary: Color(0xFF25180F),
       secondary: _darkSecondary,
       onSecondary: Color(0xFF10211F),
+      tertiary: _darkTertiary,
+      onTertiary: Color(0xFF24150C),
       error: Color(0xFFFFB4AB),
       onError: Color(0xFF690005),
       surface: _darkSurface,
       onSurface: _darkInk,
+      tertiaryContainer: Color(0xFFB3764E),
+      onTertiaryContainer: Color(0xFF1C120A),
       surfaceContainerHighest: _darkSurfaceTint,
       onSurfaceVariant: _darkInkMuted,
       outline: _darkOutline,
@@ -229,14 +242,18 @@ class AppTheme {
       ),
       titleMedium: GoogleFonts.sourceSans3(
         textStyle: base.textTheme.titleMedium,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
       titleSmall: GoogleFonts.sourceSans3(
         textStyle: base.textTheme.titleSmall,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
       ),
-      bodyLarge: GoogleFonts.sourceSans3(textStyle: base.textTheme.bodyLarge),
-      bodyMedium: GoogleFonts.sourceSans3(textStyle: base.textTheme.bodyMedium),
+      bodyLarge: GoogleFonts.sourceSans3(
+        textStyle: base.textTheme.bodyLarge?.copyWith(height: 1.6),
+      ),
+      bodyMedium: GoogleFonts.sourceSans3(
+        textStyle: base.textTheme.bodyMedium?.copyWith(height: 1.55),
+      ),
       bodySmall: GoogleFonts.sourceSans3(textStyle: base.textTheme.bodySmall),
       labelLarge: GoogleFonts.sourceSans3(
         textStyle: base.textTheme.labelLarge,
@@ -276,13 +293,14 @@ class AppTheme {
           ),
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: _fabDark,
-        foregroundColor: Color(0xFF1F140D),
-        elevation: 0,
-        focusElevation: 1,
-        hoverElevation: 1,
-        highlightElevation: 1,
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: colorScheme.tertiaryContainer,
+        foregroundColor: colorScheme.onTertiaryContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 2.5,
+        focusElevation: 3,
+        hoverElevation: 3,
+        highlightElevation: 3,
       ),
       chipTheme: base.chipTheme.copyWith(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
