@@ -9,6 +9,7 @@ class AppTheme {
   static const Color _primary = Color(0xFF92431A);
   static const Color _secondary = Color(0xFF2E645E);
   static const Color _outline = Color(0xFFCCB89C);
+  static const Color _fabLight = Color(0xFFB55F2A);
   static const Color _surfaceTint = Color(0xFFF0DFC7);
   static const Color _darkBackground = Color(0xFF1A1410);
   static const Color _darkSurface = Color(0xFF2A221A);
@@ -17,6 +18,7 @@ class AppTheme {
   static const Color _darkPrimary = Color(0xFFD4915A);
   static const Color _darkSecondary = Color(0xFF77A99F);
   static const Color _darkOutline = Color(0xFF594B3D);
+  static const Color _fabDark = Color(0xFFD4915A);
   static const Color _darkSurfaceTint = Color(0xFF3A2F24);
 
   static ThemeData light() {
@@ -108,8 +110,19 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.4)),
+          side: BorderSide(
+            color: colorScheme.outline.withValues(alpha: 0.2),
+            width: 0.5,
+          ),
         ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: _fabLight,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        focusElevation: 1,
+        hoverElevation: 1,
+        highlightElevation: 1,
       ),
       chipTheme: base.chipTheme.copyWith(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -257,8 +270,19 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.55)),
+          side: BorderSide(
+            color: colorScheme.outline.withValues(alpha: 0.2),
+            width: 0.5,
+          ),
         ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: _fabDark,
+        foregroundColor: Color(0xFF1F140D),
+        elevation: 0,
+        focusElevation: 1,
+        hoverElevation: 1,
+        highlightElevation: 1,
       ),
       chipTheme: base.chipTheme.copyWith(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

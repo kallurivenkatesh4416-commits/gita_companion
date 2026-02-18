@@ -65,7 +65,7 @@ class HomeScreen extends StatelessWidget {
                 strings: strings,
                 mode: appState.guidanceMode,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
               _SectionTitle(
                 title: strings.t('daily_verse'),
                 subtitle: strings.t('daily_verse_primary_subtitle'),
@@ -73,23 +73,25 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (appState.dailyVerse != null)
-                HeroVerseCard(
-                  verse: appState.dailyVerse!,
-                  isSaved: appState.isFavorite(appState.dailyVerse!.id),
-                  saveLabel: strings.t('bookmark'),
-                  shareLabel: strings.t('share'),
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/verse',
-                    arguments: appState.dailyVerse,
+                _DailyVerseFocus(
+                  child: HeroVerseCard(
+                    verse: appState.dailyVerse!,
+                    isSaved: appState.isFavorite(appState.dailyVerse!.id),
+                    saveLabel: strings.t('bookmark'),
+                    shareLabel: strings.t('share'),
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      '/verse',
+                      arguments: appState.dailyVerse,
+                    ),
+                    onShare: () => ShareCardService.shareVerseCard(
+                      context,
+                      appState.dailyVerse!,
+                    ),
+                    onToggleSaved: () => context
+                        .read<AppState>()
+                        .toggleFavorite(appState.dailyVerse!),
                   ),
-                  onShare: () => ShareCardService.shareVerseCard(
-                    context,
-                    appState.dailyVerse!,
-                  ),
-                  onToggleSaved: () => context
-                      .read<AppState>()
-                      .toggleFavorite(appState.dailyVerse!),
                 )
               else
                 Card(
@@ -278,7 +280,7 @@ class _HeaderPanel extends StatelessWidget {
     final todayLine = _todayLine(context);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
@@ -291,9 +293,9 @@ class _HeaderPanel extends StatelessWidget {
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: const Color(0xFF5D2E1C).withValues(alpha: 0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: const Color(0xFF5D2E1C).withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -319,11 +321,11 @@ class _HeaderPanel extends StatelessWidget {
           Text(
             strings.t('good_to_see_you'),
             style: GoogleFonts.playfairDisplay(
-              fontSize: 23,
-              fontWeight: FontWeight.w700,
+              fontSize: 21,
+              fontWeight: FontWeight.w600,
               color: Colors.white,
               height: 1.2,
-              letterSpacing: 0.3,
+              letterSpacing: 0.2,
             ),
           ),
           const SizedBox(height: 6),
@@ -491,6 +493,45 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+class _DailyVerseFocus extends StatefulWidget {
+  final Widget child;
+
+  const _DailyVerseFocus({required this.child});
+
+  @override
+  State<_DailyVerseFocus> createState() => _DailyVerseFocusState();
+}
+
+class _DailyVerseFocusState extends State<_DailyVerseFocus> {
+  var _visible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _visible = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      opacity: _visible ? 1 : 0,
+      child: AnimatedSlide(
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+        offset: _visible ? Offset.zero : const Offset(0, 0.04),
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Glassmorphic Tile with scale-on-tap effect
 // ---------------------------------------------------------------------------
@@ -544,6 +585,7 @@ class _GlassTileState extends State<_GlassTile>
 
   void _onTapUp(TapUpDetails _) {
     _scaleController.reverse();
+    HapticFeedback.lightImpact();
     widget.onTap();
   }
 
@@ -563,52 +605,74 @@ class _GlassTileState extends State<_GlassTile>
         onTapDown: _onTapDown,
         onTapUp: _onTapUp,
         onTapCancel: _onTapCancel,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.24),
-                  width: 0.5,
-                ),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: <Color>[
+                Colors.white.withValues(alpha: 0.34),
+                Colors.white.withValues(alpha: 0.12),
+              ],
+            ),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: widget.iconColor.withValues(alpha: 0.18),
+                blurRadius: 18,
+                spreadRadius: -4,
+                offset: const Offset(0, 8),
               ),
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: widget.iconColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      widget.icon,
-                      color: widget.iconColor,
-                      size: 20,
-                    ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(1),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(19),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(19),
                   ),
-                  const Spacer(),
-                  Text(
-                    widget.title,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface,
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: widget.iconColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        child: Icon(
+                          widget.icon,
+                          color: widget.iconColor,
+                          size: 20,
                         ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        widget.title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

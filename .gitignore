@@ -19,3 +19,9 @@ logs/
 # IDE
 .vscode/
 .idea/
+
+# Generated local outputs
+deliverable_output.txt
+
+# Keep full dataset versioned
+!data/gita_verses_full.json

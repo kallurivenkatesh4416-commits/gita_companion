@@ -77,6 +77,16 @@ docker compose up -d --build
 docker compose exec backend python scripts/seed_data.py --file /data/gita_verses_sample.json
 ```
 
+### Fetch Full Dataset + Seed
+
+```powershell
+pip install requests
+python tools/fetch_gita_dataset.py
+python backend/scripts/seed_data.py
+```
+
+`seed_data.py` now prefers `data/gita_verses_full.json` when present and falls back to `data/gita_verses_sample.json`.
+
 ### 4) Verify Backend
 
 ```powershell

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../i18n/app_strings.dart';
@@ -10,7 +11,10 @@ import '../models/models.dart';
 import '../repositories/gita_repository.dart';
 
 class AppState extends ChangeNotifier {
-  static const _expectedCorpusTarget = 700;
+  static const _completeCorpusMin = 700;
+  static const _completeCorpusMax = 702;
+  static const _partialCorpusThreshold = 650;
+  static const _downgradeProtectionLocalThreshold = 650;
   static const _prefOnboardingComplete = 'onboarding_complete';
   static const _prefAnonymousMode = 'anonymous_mode';
   static const _prefEmail = 'email';
@@ -56,6 +60,7 @@ class AppState extends ChangeNotifier {
   bool versesLoading = false;
   String? versesError;
   bool versesSyncPartialWarning = false;
+  String? versesSyncWarningMessage;
   List<ChapterSummary> chapters = const <ChapterSummary>[];
   final Map<int, List<Verse>> chapterVerseCache = <int, List<Verse>>{};
   int totalVersesAvailable = 0;
@@ -255,10 +260,14 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> syncAllVerses({bool force = false, int pageSize = 200}) async {
+  Future<void> syncAllVerses({
+    bool force = false,
+    bool allowDowngradeOverwrite = false,
+    int pageSize = 200,
+  }) async {
     if (!force &&
         chapterVerseCache.isNotEmpty &&
-        totalVersesAvailable >= _expectedCorpusTarget) {
+        _isCompleteCorpusTotal(totalVersesAvailable)) {
       return;
     }
 
@@ -302,9 +311,14 @@ class AppState extends ChangeNotifier {
         ..sort(_compareVerseOrder);
       final loadedTotal = loaded.length;
       final effectiveRemoteTotal = remoteTotal > 0 ? remoteTotal : loadedTotal;
-      final remoteLooksPartial = effectiveRemoteTotal < _expectedCorpusTarget;
-      final shouldBlockOverwrite = localTotal >= 600 &&
+      final remoteIsPartial =
+          effectiveRemoteTotal > 0 && effectiveRemoteTotal < _partialCorpusThreshold;
+      final shouldBlockOverwrite = !allowDowngradeOverwrite &&
+          localTotal >= _downgradeProtectionLocalThreshold &&
           effectiveRemoteTotal < (localTotal * 0.9).floor();
+
+      versesSyncPartialWarning = false;
+      versesSyncWarningMessage = null;
 
       if (localTotal == 0) {
         if (loadedTotal > 0) {
@@ -319,6 +333,15 @@ class AppState extends ChangeNotifier {
       } else if (shouldBlockOverwrite) {
         totalVersesAvailable = localTotal;
         actionTaken = 'blocked_partial_remote';
+        versesSyncPartialWarning = true;
+        versesSyncWarningMessage = AppStrings(languageCode)
+            .t('verses_sync_incomplete_server_keep_offline');
+      } else if (allowDowngradeOverwrite && loadedTotal > 0) {
+        chapterVerseCache
+          ..clear()
+          ..addAll(_groupVersesByChapter(loaded));
+        totalVersesAvailable = loadedTotal;
+        actionTaken = 'force_resync_overwrite';
       } else if (effectiveRemoteTotal >= localTotal && loadedTotal > 0) {
         chapterVerseCache
           ..clear()
@@ -330,11 +353,16 @@ class AppState extends ChangeNotifier {
         actionTaken = 'kept_local';
       }
 
-      versesSyncPartialWarning = remoteLooksPartial;
+      if (!versesSyncPartialWarning && remoteIsPartial) {
+        versesSyncPartialWarning = true;
+        versesSyncWarningMessage =
+            AppStrings(languageCode).t('verses_sync_partial_server_warning');
+      }
       versesError = null;
       debugPrint(
         'verse_sync_guard localTotal=$localTotal '
-        'remoteTotal=$effectiveRemoteTotal action=$actionTaken',
+        'remoteTotal=$effectiveRemoteTotal action=$actionTaken '
+        'allowDowngradeOverwrite=$allowDowngradeOverwrite',
       );
     } catch (error) {
       versesError = error.toString();
@@ -471,6 +499,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> toggleFavorite(Verse verse) async {
+    HapticFeedback.lightImpact();
     if (isFavorite(verse.id)) {
       await repository.removeFavorite(verse.id);
     } else {
@@ -575,6 +604,7 @@ class AppState extends ChangeNotifier {
     totalVersesAvailable = 0;
     remoteVerseTotal = 0;
     versesSyncPartialWarning = false;
+    versesSyncWarningMessage = null;
     _verseStatsLogged = false;
     versesLoading = false;
     versesError = null;
@@ -676,6 +706,10 @@ class AppState extends ChangeNotifier {
       0,
       (sum, verses) => sum + verses.length,
     );
+  }
+
+  bool _isCompleteCorpusTotal(int total) {
+    return total >= _completeCorpusMin && total <= _completeCorpusMax;
   }
 
   String _verseDedupeKey(Verse verse) {

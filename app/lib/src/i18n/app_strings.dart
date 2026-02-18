@@ -222,9 +222,19 @@ const Map<String, String> _enValues = <String, String>{
   'tab_settings': 'Settings',
   'verses_browser': 'Verses',
   'verses_sync': 'Sync verses',
+  'verses_sync_more_actions': 'More sync actions',
+  'verses_force_resync': 'Force Resync',
   'verse_sync_count': 'Total verses available',
+  'verses_sync_incomplete_server_keep_offline':
+      'Server corpus looks incomplete; keeping your offline library.',
+  'verses_sync_partial_server_warning':
+      'Server corpus appears partial. You can keep using offline verses.',
   'chapter': 'Chapter',
   'chapter_has_no_verses': 'No verses available for this chapter yet.',
+  'tag_verses': 'Tagged verses',
+  'tag_verses_count': 'Matches',
+  'tag_verses_empty':
+      'No loaded verses matched this tag yet. Sync to fetch more verses.',
   'friendly_mood_no_verse':
       'Couldn\'t find a matching verse for this mood. Try another mood, or ask Gita directly.',
   'friendly_network_timeout':

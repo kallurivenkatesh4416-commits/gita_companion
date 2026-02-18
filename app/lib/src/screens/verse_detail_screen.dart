@@ -193,7 +193,16 @@ class _VerseDetailScreenState extends State<VerseDetailScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: _verse.tags
-                    .map((tag) => Chip(label: Text(tag)))
+                    .map(
+                      (tag) => ActionChip(
+                        label: Text(tag),
+                        onPressed: () => Navigator.pushNamed(
+                          context,
+                          '/tag',
+                          arguments: tag,
+                        ),
+                      ),
+                    )
                     .toList(growable: false),
               ),
             ],

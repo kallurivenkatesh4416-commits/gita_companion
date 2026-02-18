@@ -29,7 +29,7 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 20),
+      duration: const Duration(seconds: 120),
     );
     if (widget.animate) {
       _controller.repeat();
@@ -103,7 +103,17 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
           // Mandala rings
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(painter: _MandalaPainter(dark: isDark)),
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  return Transform.rotate(
+                    angle: _controller.value * 2 * pi,
+                    child: CustomPaint(
+                      painter: _MandalaPainter(dark: isDark),
+                    ),
+                  );
+                },
+              ),
             ),
           ),
           // Floating dust motes

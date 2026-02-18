@@ -23,11 +23,17 @@ class _VersesScreenState extends State<VersesScreen> {
     });
   }
 
-  Future<void> _refresh({bool syncAll = false}) async {
+  Future<void> _refresh({
+    bool syncAll = false,
+    bool forceResync = false,
+  }) async {
     final appState = context.read<AppState>();
     await appState.refreshVerseChapters();
     if (syncAll) {
-      await appState.syncAllVerses(force: true);
+      await appState.syncAllVerses(
+        force: true,
+        allowDowngradeOverwrite: forceResync,
+      );
     }
   }
 
@@ -51,6 +57,20 @@ class _VersesScreenState extends State<VersesScreen> {
             tooltip: strings.t('verses_sync'),
             onPressed: appState.versesLoading ? null : () => _refresh(syncAll: true),
             icon: const Icon(Icons.sync_rounded),
+          ),
+          PopupMenuButton<String>(
+            tooltip: strings.t('verses_sync_more_actions'),
+            onSelected: (value) {
+              if (value == 'force_resync') {
+                _refresh(syncAll: true, forceResync: true);
+              }
+            },
+            itemBuilder: (context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'force_resync',
+                child: Text(strings.t('verses_force_resync')),
+              ),
+            ],
           ),
         ],
       ),
@@ -96,7 +116,8 @@ class _VersesScreenState extends State<VersesScreen> {
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Text(
-                            "We're syncing the full text. Some verses may be missing temporarily.",
+                            appState.versesSyncWarningMessage ??
+                                strings.t('verses_sync_incomplete_server_keep_offline'),
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: Theme.of(context)
                                       .colorScheme

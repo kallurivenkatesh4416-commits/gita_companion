@@ -14,6 +14,7 @@ import 'src/screens/ritual_screen.dart';
 import 'src/screens/settings_screen.dart';
 import 'src/screens/verses_screen.dart';
 import 'src/screens/chapter_verses_screen.dart';
+import 'src/screens/tag_verses_screen.dart';
 import 'src/screens/verse_detail_screen.dart';
 import 'src/state/app_state.dart';
 import 'src/theme/app_theme.dart';
@@ -63,6 +64,14 @@ class GitaCompanionApp extends StatelessWidget {
             if (chapter is int) {
               return MaterialPageRoute<void>(
                 builder: (_) => ChapterVersesScreen(chapter: chapter),
+              );
+            }
+          }
+          if (settings.name == '/tag') {
+            final tag = settings.arguments;
+            if (tag is String && tag.trim().isNotEmpty) {
+              return MaterialPageRoute<void>(
+                builder: (_) => TagVersesScreen(tag: tag),
               );
             }
           }

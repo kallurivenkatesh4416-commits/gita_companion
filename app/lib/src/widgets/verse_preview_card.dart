@@ -107,7 +107,8 @@ class VersePreviewCard extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                           fontStyle: FontStyle.italic,
-                          letterSpacing: 0.3,
+                          letterSpacing: 0.5,
+                          height: 1.4,
                         ),
                   ),
                   const SizedBox(height: 12),

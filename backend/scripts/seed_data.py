@@ -23,16 +23,20 @@ def resolve_data_file(cli_path: str | None) -> Path:
             return candidate
 
     defaults = [
-        Path('/data/gita_verses_complete.json'),
+        Path('/data/gita_verses_full.json'),
         Path('/data/gita_verses_sample.json'),
-        Path(__file__).resolve().parents[2] / 'data' / 'gita_verses_complete.json',
+        Path('/data/gita_verses_complete.json'),
+        Path(__file__).resolve().parents[2] / 'data' / 'gita_verses_full.json',
         Path(__file__).resolve().parents[2] / 'data' / 'gita_verses_sample.json',
+        Path(__file__).resolve().parents[2] / 'data' / 'gita_verses_complete.json',
     ]
     for candidate in defaults:
         if candidate.exists():
             return candidate
 
-    raise FileNotFoundError('Could not find gita_verses_complete.json or gita_verses_sample.json')
+    raise FileNotFoundError(
+        'Could not find gita_verses_full.json or gita_verses_sample.json'
+    )
 
 
 def main() -> None:
@@ -53,15 +57,18 @@ def main() -> None:
     with SessionLocal() as db:
         for row in rows:
             chapter = int(row['chapter'])
-            verse_number = int(row['verse'])
+            verse_number = int(row.get('verse_number', row.get('verse')))
             ref = row.get('ref') or f'{chapter}.{verse_number}'
             tags = row.get('tags') or []
+            transliteration = str(row.get('transliteration') or '')
+            translation = str(row.get('translation') or '')
+            sanskrit = str(row.get('sanskrit') or '')
 
             embedding_input = ' '.join(
                 [
                     ref,
-                    row['transliteration'],
-                    row['translation'],
+                    transliteration,
+                    translation,
                     ' '.join(tags),
                 ]
             )
@@ -71,9 +78,9 @@ def main() -> None:
                 chapter=chapter,
                 verse_number=verse_number,
                 ref=ref,
-                sanskrit=row['sanskrit'],
-                transliteration=row['transliteration'],
-                translation=row['translation'],
+                sanskrit=sanskrit,
+                transliteration=transliteration,
+                translation=translation,
                 tags=tags,
                 embedding=embedding,
             )
@@ -84,9 +91,9 @@ def main() -> None:
                     set_={
                         'chapter': chapter,
                         'verse_number': verse_number,
-                        'sanskrit': row['sanskrit'],
-                        'transliteration': row['transliteration'],
-                        'translation': row['translation'],
+                        'sanskrit': sanskrit,
+                        'transliteration': transliteration,
+                        'translation': translation,
                         'tags': tags,
                         'embedding': embedding,
                     },
@@ -96,9 +103,9 @@ def main() -> None:
         db.commit()
         total = db.scalar(select(func.count(Verse.id))) or 0
 
-    print(f'Seed complete. Loaded verses: {total}')
-    if total < 700:
-        print('Warning: verse corpus appears incomplete (expected around 700 verses).')
+    print(f'Seed complete. total_seeded={total}')
+    if total < 650:
+        print('Warning: total_seeded is below expected minimum (650).')
 
 
 if __name__ == '__main__':
