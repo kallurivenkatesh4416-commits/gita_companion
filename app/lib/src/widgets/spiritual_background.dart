@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 class SpiritualBackground extends StatefulWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
+  final bool animate;
 
   const SpiritualBackground({
     super.key,
     required this.child,
     this.padding,
+    this.animate = true,
   });
 
   @override
@@ -27,8 +29,25 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 20),
-    )..repeat();
+      duration: const Duration(seconds: 120),
+    );
+    if (widget.animate) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant SpiritualBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.animate == widget.animate) {
+      return;
+    }
+    if (widget.animate) {
+      _controller.repeat();
+    } else {
+      _controller.stop();
+      _controller.value = 0;
+    }
   }
 
   @override
@@ -39,16 +58,24 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: RadialGradient(
           center: Alignment.center,
           radius: 1.2,
-          colors: <Color>[
-            Color(0xFFF8F1E7), // center - warm parchment
-            Color(0xFFF3E8D6), // mid
-            Color(0xFFEEE3D3), // outer edge
-          ],
+          colors: isDark
+              ? const <Color>[
+                  Color(0xFF1A1410),
+                  Color(0xFF231B14),
+                  Color(0xFF2A221A),
+                ]
+              : const <Color>[
+                  Color(0xFFF8F1E7),
+                  Color(0xFFF3E8D6),
+                  Color(0xFFEEE3D3),
+                ],
           stops: <double>[0.0, 0.55, 1.0],
         ),
       ),
@@ -60,7 +87,8 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
             right: -30,
             child: _GlowOrb(
               size: 260,
-              color: const Color(0xFFE7B86D).withValues(alpha: 0.22),
+              color: (isDark ? const Color(0xFFD4915A) : const Color(0xFFE7B86D))
+                  .withValues(alpha: isDark ? 0.16 : 0.22),
             ),
           ),
           Positioned(
@@ -68,28 +96,54 @@ class _SpiritualBackgroundState extends State<SpiritualBackground>
             left: -40,
             child: _GlowOrb(
               size: 280,
-              color: const Color(0xFFB95A33).withValues(alpha: 0.12),
+              color: (isDark ? const Color(0xFFA5653F) : const Color(0xFFB95A33))
+                  .withValues(alpha: isDark ? 0.1 : 0.12),
             ),
           ),
           // Mandala rings
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(painter: _MandalaPainter()),
-            ),
-          ),
-          // Floating dust motes
-          Positioned.fill(
-            child: IgnorePointer(
               child: AnimatedBuilder(
                 animation: _controller,
                 builder: (context, _) {
-                  return CustomPaint(
-                    painter: _DustMotePainter(progress: _controller.value),
+                  return Transform.rotate(
+                    angle: _controller.value * 2 * pi,
+                    child: CustomPaint(
+                      painter: _MandalaPainter(dark: isDark),
+                    ),
                   );
                 },
               ),
             ),
           ),
+          // Floating dust motes
+          if (widget.animate)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedBuilder(
+                  animation: _controller,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: _DustMotePainter(
+                        progress: _controller.value,
+                        dark: isDark,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            )
+          else
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _DustMotePainter(
+                    progress: 0,
+                    dark: isDark,
+                  ),
+                ),
+              ),
+            ),
           // Content
           Padding(
             padding: widget.padding ?? EdgeInsets.zero,
@@ -127,13 +181,18 @@ class _GlowOrb extends StatelessWidget {
 }
 
 class _MandalaPainter extends CustomPainter {
+  final bool dark;
+
+  _MandalaPainter({required this.dark});
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width * 0.82, size.height * 0.22);
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
-      ..color = const Color(0xFF92522F).withValues(alpha: 0.12);
+      ..color = (dark ? const Color(0xFFD4915A) : const Color(0xFF92522F))
+          .withValues(alpha: dark ? 0.14 : 0.12);
 
     for (var i = 1; i <= 6; i++) {
       canvas.drawCircle(center, 22.0 * i, paint);
@@ -142,7 +201,8 @@ class _MandalaPainter extends CustomPainter {
     final secondary = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8
-      ..color = const Color(0xFF88503F).withValues(alpha: 0.07);
+      ..color = (dark ? const Color(0xFFB78054) : const Color(0xFF88503F))
+          .withValues(alpha: dark ? 0.1 : 0.07);
 
     final lowerCenter = Offset(size.width * 0.18, size.height * 0.86);
     for (var i = 1; i <= 4; i++) {
@@ -151,14 +211,16 @@ class _MandalaPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MandalaPainter oldDelegate) =>
+      oldDelegate.dark != dark;
 }
 
 /// Draws 8 golden dust motes drifting slowly across the screen.
 class _DustMotePainter extends CustomPainter {
   final double progress;
+  final bool dark;
 
-  _DustMotePainter({required this.progress});
+  _DustMotePainter({required this.progress, required this.dark});
 
   static final List<_Mote> _motes = List.generate(8, (i) {
     final rng = Random(i * 37 + 7);
@@ -184,7 +246,8 @@ class _DustMotePainter extends CustomPainter {
       final alpha = (mote.opacity * fade).clamp(0.0, 1.0);
 
       final paint = Paint()
-        ..color = Color(0xFFDAA520).withValues(alpha: alpha)
+        ..color = (dark ? const Color(0xFFD9A56F) : const Color(0xFFDAA520))
+            .withValues(alpha: alpha)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0);
 
       canvas.drawCircle(Offset(x, y), mote.size, paint);
@@ -192,7 +255,8 @@ class _DustMotePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DustMotePainter old) => old.progress != progress;
+  bool shouldRepaint(_DustMotePainter old) =>
+      old.progress != progress || old.dark != dark;
 }
 
 class _Mote {

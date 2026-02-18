@@ -35,7 +35,42 @@ class Verse {
   }
 }
 
+class ChapterSummary {
+  final int chapter;
+  final int verseCount;
+
+  const ChapterSummary({
+    required this.chapter,
+    required this.verseCount,
+  });
+
+  factory ChapterSummary.fromJson(Map<String, dynamic> json) {
+    return ChapterSummary(
+      chapter: json['chapter'] as int,
+      verseCount: json['verse_count'] as int? ?? 0,
+    );
+  }
+}
+
+class VerseStats {
+  final int totalVerses;
+  final int expectedMinimum;
+
+  const VerseStats({
+    required this.totalVerses,
+    required this.expectedMinimum,
+  });
+
+  factory VerseStats.fromJson(Map<String, dynamic> json) {
+    return VerseStats(
+      totalVerses: json['total_verses'] as int? ?? 0,
+      expectedMinimum: json['expected_minimum'] as int? ?? 700,
+    );
+  }
+}
+
 class GuidanceVerse {
+  final int? verseId;
   final String ref;
   final String sanskrit;
   final String transliteration;
@@ -43,6 +78,7 @@ class GuidanceVerse {
   final String whyThis;
 
   const GuidanceVerse({
+    this.verseId,
     required this.ref,
     required this.sanskrit,
     required this.transliteration,
@@ -52,6 +88,7 @@ class GuidanceVerse {
 
   factory GuidanceVerse.fromJson(Map<String, dynamic> json) {
     return GuidanceVerse(
+      verseId: json['verse_id'] as int?,
       ref: json['ref'] as String,
       sanskrit: json['sanskrit'] as String,
       transliteration: json['transliteration'] as String,
@@ -61,13 +98,17 @@ class GuidanceVerse {
   }
 
   Map<String, dynamic> toJson() {
-    return <String, dynamic>{
+    final payload = <String, dynamic>{
       'ref': ref,
       'sanskrit': sanskrit,
       'transliteration': transliteration,
       'translation': translation,
       'why_this': whyThis,
     };
+    if (verseId != null) {
+      payload['verse_id'] = verseId;
+    }
+    return payload;
   }
 }
 

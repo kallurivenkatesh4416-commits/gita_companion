@@ -3,7 +3,7 @@ import time
 from datetime import date
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
@@ -16,6 +16,8 @@ from .schemas import (
     AskRequest,
     ChatRequest,
     ChatResponse,
+    ChapterVersePageOut,
+    ChapterSummaryOut,
     FavoriteCreate,
     FavoriteOut,
     GuidanceVerse,
@@ -329,6 +331,7 @@ def morning_greeting(request: MorningGreetingRequest, db: Session = Depends(get_
     )
 
     selected_verse = chat_result.verses[0] if chat_result.verses else GuidanceVerse(
+        verse_id=verse.id,
         ref=verse.ref,
         sanskrit=verse.sanskrit,
         transliteration=verse.transliteration,
@@ -357,6 +360,78 @@ def get_verse(verse_id: int, db: Session = Depends(get_db)) -> Verse:
     if verse is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Verse not found')
     return verse
+
+
+@app.get('/verses', response_model=list[VerseOut])
+def list_verses(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> list[Verse]:
+    return list(
+        db.execute(select(Verse).order_by(Verse.id).offset(offset).limit(limit))
+        .scalars()
+        .all()
+    )
+
+
+@app.get('/verse-stats')
+def verse_stats(db: Session = Depends(get_db)) -> dict[str, int]:
+    total = int(db.scalar(select(func.count(Verse.id))) or 0)
+    return {'total_verses': total, 'expected_minimum': 700}
+
+
+@app.get('/chapters', response_model=list[ChapterSummaryOut])
+def list_chapters(db: Session = Depends(get_db)) -> list[ChapterSummaryOut]:
+    rows = db.execute(
+        select(Verse.chapter, func.count(Verse.id))
+        .group_by(Verse.chapter)
+        .order_by(Verse.chapter)
+    ).all()
+    count_by_chapter = {int(chapter): int(count) for chapter, count in rows}
+
+    return [
+        ChapterSummaryOut(chapter=chapter, verse_count=count_by_chapter.get(chapter, 0))
+        for chapter in range(1, 19)
+    ]
+
+
+@app.get('/chapters/{chapter}/verses', response_model=ChapterVersePageOut)
+def list_chapter_verses(
+    chapter: int,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> ChapterVersePageOut:
+    if chapter < 1 or chapter > 18:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Chapter must be between 1 and 18',
+        )
+
+    total = int(
+        db.scalar(select(func.count(Verse.id)).where(Verse.chapter == chapter)) or 0
+    )
+    items = list(
+        db.execute(
+            select(Verse)
+            .where(Verse.chapter == chapter)
+            .order_by(Verse.verse_number.asc(), Verse.id.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+    has_more = (offset + len(items)) < total
+
+    return ChapterVersePageOut(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+        has_more=has_more,
+    )
 
 
 @app.get('/favorites', response_model=list[FavoriteOut])

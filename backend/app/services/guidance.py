@@ -35,6 +35,7 @@ def _build_verse_payload(verses: Sequence[Verse], mode: Literal["comfort", "clar
         )
         payload.append(
             GuidanceVerse(
+                verse_id=verse.id,
                 ref=verse.ref,
                 sanskrit=verse.sanskrit,
                 transliteration=verse.transliteration,
@@ -204,6 +205,7 @@ class GeminiProvider:
         for verse in verses[:3]:
             verse_text.append(
                 {
+                    "verse_id": verse.id,
                     "ref": verse.ref,
                     "sanskrit": verse.sanskrit,
                     "transliteration": verse.transliteration,
@@ -216,6 +218,7 @@ class GeminiProvider:
             "topic": "string",
             "verses": [
                 {
+                    "verse_id": 47,
                     "ref": "2.47",
                     "sanskrit": "...",
                     "transliteration": "...",

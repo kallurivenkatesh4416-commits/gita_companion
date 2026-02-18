@@ -5,6 +5,9 @@ import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../services/voice_service.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
+import '../utils/ui_text_utils.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/spiritual_background.dart';
 
 class AskScreen extends StatefulWidget {
@@ -76,6 +79,7 @@ class _AskScreenState extends State<AskScreen> {
       return;
     }
     final appState = context.read<AppState>();
+    final strings = AppStrings(appState.languageCode);
 
     if (_listening) {
       await _voiceService.stopListening(
@@ -137,14 +141,24 @@ class _AskScreenState extends State<AskScreen> {
           await _speakMessage(_messages.length - 1, response.reply, ttsLocale);
         } catch (error) {
           if (mounted) {
-            setState(() => _error = error.toString());
+            setState(() {
+              _error = mapFriendlyError(
+                error,
+                strings: strings,
+                context: 'chat',
+              );
+            });
           }
         }
       }
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = error.toString();
+        _error = mapFriendlyError(
+          error,
+          strings: strings,
+          context: 'chat',
+        );
         _messages.add(
           const _ChatMessage(
             role: 'assistant',
@@ -156,6 +170,17 @@ class _AskScreenState extends State<AskScreen> {
       if (mounted) setState(() => _sending = false);
       _scrollToBottom();
     }
+  }
+
+  void _sendFollowUp(String text) {
+    if (_sending) {
+      return;
+    }
+    _messageController.text = text;
+    _messageController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _messageController.text.length),
+    );
+    _send();
   }
 
   Future<void> _toggleListening() async {
@@ -262,6 +287,7 @@ class _AskScreenState extends State<AskScreen> {
         title: Text(strings.t('chat_title')),
       ),
       body: SpiritualBackground(
+        animate: false,
         child: Column(
           children: <Widget>[
             Expanded(
@@ -271,10 +297,15 @@ class _AskScreenState extends State<AskScreen> {
                 itemCount: _messages.length,
                 itemBuilder: (BuildContext context, int index) {
                   final message = _messages[index];
+                  final isLatestAssistant = message.role == 'assistant' &&
+                      index == _messages.length - 1 &&
+                      message.response != null;
                   return _MessageBubble(
                     message: message,
                     strings: strings,
                     speaking: _speakingMessageIndex == index,
+                    showFollowUps: isLatestAssistant,
+                    onFollowUpSelected: isLatestAssistant ? _sendFollowUp : null,
                     onSpeakPressed: message.role == 'assistant'
                         ? () => _speakMessage(index, message.text, ttsLocale)
                         : null,
@@ -347,6 +378,10 @@ class _AskScreenState extends State<AskScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: AppBottomNav(currentIndex: 2),
+      ),
     );
   }
 }
@@ -355,12 +390,16 @@ class _MessageBubble extends StatelessWidget {
   final _ChatMessage message;
   final AppStrings strings;
   final bool speaking;
+  final bool showFollowUps;
+  final ValueChanged<String>? onFollowUpSelected;
   final VoidCallback? onSpeakPressed;
 
   const _MessageBubble({
     required this.message,
     required this.strings,
     required this.speaking,
+    required this.showFollowUps,
+    required this.onFollowUpSelected,
     required this.onSpeakPressed,
   });
 
@@ -379,36 +418,90 @@ class _MessageBubble extends StatelessWidget {
             crossAxisAlignment:
                 isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: <Widget>[
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isUser
-                      ? colorScheme.primary.withValues(alpha: 0.95)
-                      : colorScheme.surface,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(isUser ? 18 : 4),
-                    bottomRight: Radius.circular(isUser ? 4 : 18),
+              if (isUser)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.95),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(4),
+                    ),
                   ),
-                  border: isUser
-                      ? null
-                      : Border.all(
-                          color: colorScheme.outline.withValues(alpha: 0.35)),
-                ),
-                child: Text(
-                  message.text,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: isUser
-                            ? colorScheme.onPrimary
-                            : colorScheme.onSurface,
+                  child: Text(
+                    message.text,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: colorScheme.onPrimary,
+                        ),
+                  ),
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Container(
+                      width: 30,
+                      height: 30,
+                      margin: const EdgeInsets.only(top: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF2E4CD),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFD99A52).withValues(alpha: 0.6),
+                        ),
                       ),
+                      child: const Icon(
+                        Icons.spa_rounded,
+                        size: 18,
+                        color: Color(0xFF9A5C2D),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF8EC),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(18),
+                            topRight: Radius.circular(18),
+                            bottomLeft: Radius.circular(4),
+                            bottomRight: Radius.circular(18),
+                          ),
+                          border: Border.all(
+                            color: colorScheme.outline.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            border: Border(
+                              left: BorderSide(
+                                color: Color(0xFFD1863B),
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                          padding: const EdgeInsets.only(left: 10),
+                          child: Text(
+                            message.text,
+                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                  color: const Color(0xFF2D2419),
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
               if (!isUser)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 4, left: 38),
                   child: TextButton.icon(
                     onPressed: onSpeakPressed,
                     icon: Icon(speaking
@@ -421,8 +514,45 @@ class _MessageBubble extends StatelessWidget {
                 ),
               if (message.response != null) ...<Widget>[
                 const SizedBox(height: 8),
-                _AssistantContextCard(
-                    response: message.response!, strings: strings),
+                Padding(
+                  padding: EdgeInsets.only(left: isUser ? 0 : 38),
+                  child: _AssistantContextCard(
+                      response: message.response!, strings: strings),
+                ),
+              ],
+              if (showFollowUps && onFollowUpSelected != null) ...<Widget>[
+                const SizedBox(height: 8),
+                Padding(
+                  padding: EdgeInsets.only(left: isUser ? 0 : 38),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        strings.t('suggested_followups'),
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: <String>[
+                          strings.t('follow_up_tell_more'),
+                          strings.t('follow_up_related_verse'),
+                          strings.t('follow_up_practice_this'),
+                        ]
+                            .map(
+                              (prompt) => ActionChip(
+                                label: Text(prompt),
+                                onPressed: () => onFollowUpSelected!(prompt),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ],
           ),
@@ -443,39 +573,61 @@ class _AssistantContextCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(strings.t('supporting_verses'),
-                style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(height: 6),
-            ...response.verses.map(
-              (verse) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  '${verse.ref}: ${verse.translation}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        title: Text(
+          strings.t('supporting_verses'),
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        subtitle: Text(
+          '${strings.t('action')}: ${response.actionStep}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+        ),
+        children: <Widget>[
+          ...response.verses.map(
+            (verse) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'BG ${verse.ref}',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: colorScheme.primary,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    verse.sanskrit,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTheme.sanskritStyle(
+                      context,
+                      fontSize: 18,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    verse.translation,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '${strings.t('action')}: ${response.actionStep}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${strings.t('reflect')}: ${response.reflectionPrompt}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ],
-        ),
+          ),
+          Text(
+            '${strings.t('reflect')}: ${response.reflectionPrompt}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
       ),
     );
   }
