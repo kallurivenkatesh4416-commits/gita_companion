@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
+import '../services/share_card_service.dart';
 import '../state/app_state.dart';
 import '../widgets/spiritual_background.dart';
 import '../widgets/verse_preview_card.dart';
@@ -70,6 +71,11 @@ class HomeScreen extends StatelessWidget {
                     '/verse',
                     arguments: appState.dailyVerse,
                   ),
+                  onShare: () => ShareCardService.shareVerseCard(
+                    context,
+                    appState.dailyVerse!,
+                  ),
+                  shareTooltip: strings.t('share'),
                 )
               else
                 Card(

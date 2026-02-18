@@ -6,8 +6,16 @@ import '../models/models.dart';
 class VersePreviewCard extends StatelessWidget {
   final Verse verse;
   final VoidCallback? onTap;
+  final VoidCallback? onShare;
+  final String? shareTooltip;
 
-  const VersePreviewCard({super.key, required this.verse, this.onTap});
+  const VersePreviewCard({
+    super.key,
+    required this.verse,
+    this.onTap,
+    this.onShare,
+    this.shareTooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +68,20 @@ class VersePreviewCard extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
+                      if (onShare != null)
+                        IconButton(
+                          icon: Icon(
+                            Icons.share_outlined,
+                            size: 20,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          onPressed: onShare,
+                          tooltip: shareTooltip ?? '',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      if (onShare != null) const SizedBox(width: 8),
                       Icon(
                         Icons.arrow_forward_rounded,
                         color: colorScheme.onSurfaceVariant,

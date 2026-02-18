@@ -178,6 +178,9 @@ const Map<String, String> _enValues = <String, String>{
       'Playback integration can be connected in a later milestone.',
   'retry': 'Retry',
   'divine_chat': 'Divine Chat',
+  'share': 'Share',
+  'preparing_image': 'Preparing image...',
+  'share_failed': 'Unable to share right now.',
 };
 
 const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
@@ -258,6 +261,9 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'journeys_empty': 'Abhi journeys uplabdh nahin hain.',
     'retry': 'Retry',
     'divine_chat': 'Divya Chat',
+    'share': 'Share karein',
+    'preparing_image': 'Image taiyaar ho rahi hai...',
+    'share_failed': 'Abhi share nahin ho paya.',
   },
   'te': <String, String>{
     'app_title': 'Gita Sahachari',
@@ -321,6 +327,9 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'journeys_empty': 'Prastutam journeys andubatulo levu.',
     'retry': 'Retry',
     'divine_chat': 'Divine Chat',
+    'share': 'Share cheyyi',
+    'preparing_image': 'Image tayyaru avutundi...',
+    'share_failed': 'Ippudu share cheyadam kaaledu.',
   },
   'ta': <String, String>{
     'app_title': 'Gita Companion',
@@ -487,6 +496,9 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
         'La reproduccion de audio se puede conectar en un hito posterior.',
     'retry': 'Reintentar',
     'divine_chat': 'Chat Divino',
+    'share': 'Compartir',
+    'preparing_image': 'Preparando imagen...',
+    'share_failed': 'No se pudo compartir en este momento.',
   },
 };
 

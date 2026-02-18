@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
+import '../services/share_card_service.dart';
 import '../state/app_state.dart';
 import '../widgets/spiritual_background.dart';
 
@@ -52,6 +53,15 @@ class VerseDetailScreen extends StatelessWidget {
                 title: Text(strings.t('audio_placeholder_title')),
                 subtitle: Text(strings.t('audio_placeholder_subtitle')),
                 onTap: () {},
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => ShareCardService.shareVerseCard(context, verse),
+                icon: const Icon(Icons.share_outlined),
+                label: Text(strings.t('share')),
               ),
             ),
             const SizedBox(height: 12),
