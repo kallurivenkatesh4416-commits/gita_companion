@@ -43,6 +43,29 @@ class GitaRepository {
 
   Future<Verse> getVerseById(int verseId) => _apiClient.fetchVerseById(verseId);
 
+  Future<List<Verse>> getVersesPage({
+    required int offset,
+    int limit = 200,
+  }) {
+    return _apiClient.fetchVersesPage(offset: offset, limit: limit);
+  }
+
+  Future<VerseStats> getVerseStats() => _apiClient.fetchVerseStats();
+
+  Future<List<ChapterSummary>> getChapters() => _apiClient.fetchChapters();
+
+  Future<ChapterVersesPage> getChapterVerses({
+    required int chapter,
+    required int offset,
+    int limit = 200,
+  }) {
+    return _apiClient.fetchChapterVerses(
+      chapter: chapter,
+      offset: offset,
+      limit: limit,
+    );
+  }
+
   Future<List<FavoriteItem>> getFavorites() => _apiClient.fetchFavorites();
 
   Future<FavoriteItem> addFavorite(int verseId) =>

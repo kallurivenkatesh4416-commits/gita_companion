@@ -12,6 +12,8 @@ import 'src/screens/mood_screen.dart';
 import 'src/screens/onboarding_screen.dart';
 import 'src/screens/ritual_screen.dart';
 import 'src/screens/settings_screen.dart';
+import 'src/screens/verses_screen.dart';
+import 'src/screens/chapter_verses_screen.dart';
 import 'src/screens/verse_detail_screen.dart';
 import 'src/state/app_state.dart';
 import 'src/theme/app_theme.dart';
@@ -34,6 +36,8 @@ class GitaCompanionApp extends StatelessWidget {
         title: 'Gita Companion',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: ThemeMode.system,
         routes: <String, WidgetBuilder>{
           '/': (_) => const _RootScreen(),
           '/ask': (_) => const AskScreen(),
@@ -43,6 +47,7 @@ class GitaCompanionApp extends StatelessWidget {
           '/favorites': (_) => const FavoritesScreen(),
           '/journeys': (_) => const JourneysScreen(),
           '/settings': (_) => const SettingsScreen(),
+          '/verses': (_) => const VersesScreen(),
         },
         onGenerateRoute: (settings) {
           if (settings.name == '/verse') {
@@ -50,6 +55,14 @@ class GitaCompanionApp extends StatelessWidget {
             if (verse is Verse) {
               return MaterialPageRoute<void>(
                 builder: (_) => VerseDetailScreen(verse: verse),
+              );
+            }
+          }
+          if (settings.name == '/chapter') {
+            final chapter = settings.arguments;
+            if (chapter is int) {
+              return MaterialPageRoute<void>(
+                builder: (_) => ChapterVersesScreen(chapter: chapter),
               );
             }
           }

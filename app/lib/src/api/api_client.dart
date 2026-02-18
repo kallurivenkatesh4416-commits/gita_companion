@@ -14,6 +14,22 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+class ChapterVersesPage {
+  final List<Verse> items;
+  final int total;
+  final int limit;
+  final int offset;
+  final bool hasMore;
+
+  const ChapterVersesPage({
+    required this.items,
+    required this.total,
+    required this.limit,
+    required this.offset,
+    required this.hasMore,
+  });
+}
+
 class ApiClient {
   final String baseUrl;
   final http.Client _httpClient;
@@ -125,6 +141,58 @@ class ApiClient {
     return Verse.fromJson(_decodeMap(response.body));
   }
 
+  Future<List<Verse>> fetchVersesPage({
+    required int offset,
+    int limit = 200,
+  }) async {
+    final response = await _httpClient.get(
+      _uri('/verses?offset=$offset&limit=$limit'),
+    );
+    _ensureOk(response);
+    final body = _decodeList(response.body);
+    return body
+        .map((item) => Verse.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  Future<VerseStats> fetchVerseStats() async {
+    final response = await _httpClient.get(_uri('/verse-stats'));
+    _ensureOk(response);
+    return VerseStats.fromJson(_decodeMap(response.body));
+  }
+
+  Future<List<ChapterSummary>> fetchChapters() async {
+    final response = await _httpClient.get(_uri('/chapters'));
+    _ensureOk(response);
+    final body = _decodeList(response.body);
+    return body
+        .map((item) => ChapterSummary.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
+  }
+
+  Future<ChapterVersesPage> fetchChapterVerses({
+    required int chapter,
+    required int offset,
+    int limit = 200,
+  }) async {
+    final response = await _httpClient.get(
+      _uri('/chapters/$chapter/verses?offset=$offset&limit=$limit'),
+    );
+    _ensureOk(response);
+    final body = _decodeMap(response.body);
+    final rawItems = body['items'] as List<dynamic>? ?? const <dynamic>[];
+    final items = rawItems
+        .map((item) => Verse.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
+    return ChapterVersesPage(
+      items: items,
+      total: body['total'] as int? ?? 0,
+      limit: body['limit'] as int? ?? limit,
+      offset: body['offset'] as int? ?? offset,
+      hasMore: body['has_more'] as bool? ?? false,
+    );
+  }
+
   Future<List<FavoriteItem>> fetchFavorites() async {
     final response = await _httpClient.get(_uri('/favorites'));
     _ensureOk(response);
@@ -178,15 +246,19 @@ class ApiClient {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return;
     }
-
-    throw ApiException(
-        'Request failed (${response.statusCode}): ${response.body}');
+    debugPrint(
+      'API error: ${response.request?.method ?? 'REQUEST'} '
+      '${response.request?.url} status=${response.statusCode} '
+      'body=${response.body}',
+    );
+    throw const ApiException('Something went wrong. Please try again.');
   }
 
   Map<String, dynamic> _decodeMap(String body) {
     final decoded = jsonDecode(body);
     if (decoded is! Map<String, dynamic>) {
-      throw const ApiException('Expected JSON object');
+      debugPrint('API decode error: expected JSON object body=$body');
+      throw const ApiException('Something went wrong. Please try again.');
     }
     return decoded;
   }
@@ -194,7 +266,8 @@ class ApiClient {
   List<dynamic> _decodeList(String body) {
     final decoded = jsonDecode(body);
     if (decoded is! List<dynamic>) {
-      throw const ApiException('Expected JSON array');
+      debugPrint('API decode error: expected JSON array body=$body');
+      throw const ApiException('Something went wrong. Please try again.');
     }
     return decoded;
   }

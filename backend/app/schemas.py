@@ -20,6 +20,23 @@ class VerseOut(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
+class ChapterSummaryOut(BaseModel):
+    chapter: int
+    verse_count: int
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ChapterVersePageOut(BaseModel):
+    items: list[VerseOut]
+    total: int
+    limit: int
+    offset: int
+    has_more: bool
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class GuidanceVerse(BaseModel):
     verse_id: int
     ref: str

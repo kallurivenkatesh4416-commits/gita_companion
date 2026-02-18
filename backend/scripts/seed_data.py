@@ -23,14 +23,16 @@ def resolve_data_file(cli_path: str | None) -> Path:
             return candidate
 
     defaults = [
+        Path('/data/gita_verses_complete.json'),
         Path('/data/gita_verses_sample.json'),
+        Path(__file__).resolve().parents[2] / 'data' / 'gita_verses_complete.json',
         Path(__file__).resolve().parents[2] / 'data' / 'gita_verses_sample.json',
     ]
     for candidate in defaults:
         if candidate.exists():
             return candidate
 
-    raise FileNotFoundError('Could not find gita_verses_sample.json')
+    raise FileNotFoundError('Could not find gita_verses_complete.json or gita_verses_sample.json')
 
 
 def main() -> None:
@@ -95,6 +97,8 @@ def main() -> None:
         total = db.scalar(select(func.count(Verse.id))) or 0
 
     print(f'Seed complete. Loaded verses: {total}')
+    if total < 700:
+        print('Warning: verse corpus appears incomplete (expected around 700 verses).')
 
 
 if __name__ == '__main__':
