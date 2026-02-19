@@ -1,5 +1,8 @@
 ﻿# Backend
 backend/.env
+# Ensure real backend service modules are tracked
+!backend/app/services/*.py
+!backend/app/services/**/*.py
 
 # Flutter
 app/.dart_tool/
