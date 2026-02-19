@@ -84,9 +84,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         final favorite = appState.favorites[index];
                         return Card(
                           child: ListTile(
-                            title: Text('Verse ${favorite.verse.ref}'),
+                            title: Text(
+                              '${strings.t('verse_bookmark')} ${favorite.verse.ref}',
+                            ),
                             subtitle: Text(
-                              favorite.verse.translation,
+                              favorite.verse
+                                  .localizedTranslation(appState.languageCode),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -18,6 +19,7 @@ class GitaRepository {
   final Map<int, Verse> _verseByIdCache = <int, Verse>{};
   List<Verse>? _bundledVerses;
   bool lastRequestUsedOfflineData = false;
+  bool lastRequestOfflineFallbackFromConnectivity = false;
 
   GitaRepository(this._apiClient);
 
@@ -27,14 +29,17 @@ class GitaRepository {
     try {
       final verse = await _apiClient.fetchDailyVerse();
       lastRequestUsedOfflineData = false;
+      lastRequestOfflineFallbackFromConnectivity = false;
       _verseByIdCache[verse.id] = verse;
       await _persistDailyVerse(verse);
       return verse;
-    } catch (_) {
+    } catch (error) {
+      final connectivityIssue = _isConnectivityIssue(error);
       final cached = await _loadCachedDailyVerse();
       if (cached != null) {
         _verseByIdCache[cached.id] = cached;
         lastRequestUsedOfflineData = true;
+        lastRequestOfflineFallbackFromConnectivity = connectivityIssue;
         return cached;
       }
 
@@ -43,6 +48,7 @@ class GitaRepository {
         final verse = bundled.first;
         _verseByIdCache[verse.id] = verse;
         lastRequestUsedOfflineData = true;
+        lastRequestOfflineFallbackFromConnectivity = connectivityIssue;
         return verse;
       }
       rethrow;
@@ -52,6 +58,7 @@ class GitaRepository {
   Future<List<ChapterSummary>> getChapters({bool forceRefresh = false}) async {
     if (!forceRefresh && _chaptersCache != null) {
       lastRequestUsedOfflineData = false;
+      lastRequestOfflineFallbackFromConnectivity = false;
       return _chaptersCache!;
     }
 
@@ -59,13 +66,16 @@ class GitaRepository {
       final chapters = await _apiClient.fetchChapters();
       _chaptersCache = chapters;
       lastRequestUsedOfflineData = false;
+      lastRequestOfflineFallbackFromConnectivity = false;
       await _persistChapters(chapters);
       return chapters;
-    } catch (_) {
+    } catch (error) {
+      final connectivityIssue = _isConnectivityIssue(error);
       final cached = await _loadCachedChapters();
       if (cached.isNotEmpty) {
         _chaptersCache = cached;
         lastRequestUsedOfflineData = true;
+        lastRequestOfflineFallbackFromConnectivity = connectivityIssue;
         return cached;
       }
 
@@ -73,6 +83,7 @@ class GitaRepository {
       if (bundled.isNotEmpty) {
         _chaptersCache = bundled;
         lastRequestUsedOfflineData = true;
+        lastRequestOfflineFallbackFromConnectivity = connectivityIssue;
         return bundled;
       }
       rethrow;
@@ -85,6 +96,7 @@ class GitaRepository {
   }) async {
     if (!forceRefresh && _chapterVerseCache.containsKey(chapter)) {
       lastRequestUsedOfflineData = false;
+      lastRequestOfflineFallbackFromConnectivity = false;
       return _chapterVerseCache[chapter]!;
     }
 
@@ -92,13 +104,16 @@ class GitaRepository {
       final verses = await _apiClient.fetchVerses(chapter: chapter);
       _storeChapterVerses(chapter, verses);
       lastRequestUsedOfflineData = false;
+      lastRequestOfflineFallbackFromConnectivity = false;
       await _persistVersesForChapter(chapter, verses);
       return verses;
-    } catch (_) {
+    } catch (error) {
+      final connectivityIssue = _isConnectivityIssue(error);
       final cached = await _loadCachedVersesForChapter(chapter);
       if (cached.isNotEmpty) {
         _storeChapterVerses(chapter, cached);
         lastRequestUsedOfflineData = true;
+        lastRequestOfflineFallbackFromConnectivity = connectivityIssue;
         return cached;
       }
 
@@ -106,6 +121,7 @@ class GitaRepository {
       if (bundled.isNotEmpty) {
         _storeChapterVerses(chapter, bundled);
         lastRequestUsedOfflineData = true;
+        lastRequestOfflineFallbackFromConnectivity = connectivityIssue;
         return bundled;
       }
       rethrow;
@@ -174,6 +190,7 @@ class GitaRepository {
   }) async {
     if (!forceRefresh && _verseByIdCache.containsKey(verseId)) {
       lastRequestUsedOfflineData = false;
+      lastRequestOfflineFallbackFromConnectivity = false;
       return _verseByIdCache[verseId]!;
     }
 
@@ -181,39 +198,19 @@ class GitaRepository {
       final verse = await _apiClient.fetchVerseById(verseId);
       _verseByIdCache[verse.id] = verse;
       lastRequestUsedOfflineData = false;
+      lastRequestOfflineFallbackFromConnectivity = false;
       return verse;
-    } catch (_) {
+    } catch (error) {
+      final connectivityIssue = _isConnectivityIssue(error);
       final cached = await _findVerseInOfflineSources(verseId);
       if (cached != null) {
         _verseByIdCache[cached.id] = cached;
         lastRequestUsedOfflineData = true;
+        lastRequestOfflineFallbackFromConnectivity = connectivityIssue;
         return cached;
       }
       rethrow;
     }
-  }
-
-  Future<List<Verse>> getVersesPage({
-    required int offset,
-    int limit = 200,
-  }) {
-    return _apiClient.fetchVersesPage(offset: offset, limit: limit);
-  }
-
-  Future<VerseStats> getVerseStats() => _apiClient.fetchVerseStats();
-
-  Future<List<ChapterSummary>> getChapters() => _apiClient.fetchChapters();
-
-  Future<ChapterVersesPage> getChapterVerses({
-    required int chapter,
-    required int offset,
-    int limit = 200,
-  }) {
-    return _apiClient.fetchChapterVerses(
-      chapter: chapter,
-      offset: offset,
-      limit: limit,
-    );
   }
 
   Future<List<FavoriteItem>> getFavorites() => _apiClient.fetchFavorites();
@@ -455,5 +452,15 @@ class GitaRepository {
       }
     }
     return null;
+  }
+
+  bool _isConnectivityIssue(Object error) {
+    final errorText = error.toString().toLowerCase();
+    return error is TimeoutException ||
+        errorText.contains('timed out') ||
+        errorText.contains('socketexception') ||
+        errorText.contains('failed host lookup') ||
+        errorText.contains('network is unreachable') ||
+        errorText.contains('connection refused');
   }
 }

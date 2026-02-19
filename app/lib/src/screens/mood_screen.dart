@@ -166,7 +166,7 @@ class _MoodCheckInScreenState extends State<MoodCheckInScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text('Verse ${verse.ref}',
+                        Text('${strings.t('verse_bookmark')} ${verse.ref}',
                             style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 6),
                         Text(verse.translation),

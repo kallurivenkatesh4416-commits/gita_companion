@@ -6,6 +6,7 @@ class Verse {
   final String sanskrit;
   final String transliteration;
   final String translation;
+  final String? translationHi;
   final List<String> tags;
 
   const Verse({
@@ -16,6 +17,7 @@ class Verse {
     required this.sanskrit,
     required this.transliteration,
     required this.translation,
+    this.translationHi,
     required this.tags,
   });
 
@@ -28,10 +30,29 @@ class Verse {
       sanskrit: json['sanskrit'] as String,
       transliteration: json['transliteration'] as String,
       translation: json['translation'] as String,
+      translationHi: _asNullableString(json['translation_hi']),
       tags: (json['tags'] as List<dynamic>? ?? const <dynamic>[])
           .map((value) => value.toString())
           .toList(growable: false),
     );
+  }
+
+  String localizedTranslation(String languageCode) {
+    if (languageCode.trim().toLowerCase() == 'hi') {
+      final candidate = translationHi?.trim() ?? '';
+      if (candidate.isNotEmpty) {
+        return candidate;
+      }
+    }
+    return translation;
+  }
+
+  static String? _asNullableString(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
   }
 }
 
@@ -562,7 +583,10 @@ class BookmarkItem {
   }
 
   /// Create a bookmark from a Verse object.
-  factory BookmarkItem.fromVerse(Verse verse) {
+  factory BookmarkItem.fromVerse(
+    Verse verse, {
+    String? translationOverride,
+  }) {
     return BookmarkItem(
       id: 'bk_v${verse.id}_${DateTime.now().microsecondsSinceEpoch}',
       createdAt: DateTime.now(),
@@ -570,7 +594,7 @@ class BookmarkItem {
       verseId: verse.id,
       verseRef: verse.ref,
       sanskrit: verse.sanskrit,
-      translation: verse.translation,
+      translation: translationOverride ?? verse.translation,
     );
   }
 

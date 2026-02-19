@@ -46,7 +46,12 @@ class ApiClient {
 
   ApiClient({String? baseUrl, http.Client? httpClient})
       : baseUrl = _resolveBaseUrl(baseUrl),
-        _httpClient = httpClient ?? http.Client();
+        _httpClient = httpClient ?? http.Client() {
+    if (kDebugMode) {
+      debugPrint('ApiClient baseUrl: ${this.baseUrl}');
+    }
+  }
+
 
   static String _resolveBaseUrl(String? override) {
     if (override != null && override.trim().isNotEmpty) {
@@ -63,7 +68,7 @@ class ApiClient {
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8000';
+      return 'http://127.0.0.1:8000';
     }
 
     return 'http://localhost:8000';

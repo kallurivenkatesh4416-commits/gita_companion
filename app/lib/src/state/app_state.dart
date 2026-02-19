@@ -68,6 +68,7 @@ class AppState extends ChangeNotifier {
   bool offlineMode = false;
 
   bool loading = false;
+  bool _favoritesLoading = false;
   String? dailyVerseError;
   String? moodOptionsError;
   String? favoritesError;
@@ -93,6 +94,25 @@ class AppState extends ChangeNotifier {
   bool chaptersLoading = false;
 
   bool get ritualCompletedToday => ritualLastCompletedDate == _todayKey();
+  bool get favoritesLoading => _favoritesLoading;
+  bool get versesLoading => chaptersLoading || _chapterVersesLoading.isNotEmpty;
+  String? get versesError {
+    if (chaptersError != null) {
+      return chaptersError;
+    }
+    if (chapterVersesErrors.isEmpty) {
+      return null;
+    }
+    return chapterVersesErrors.values.first;
+  }
+  bool get versesSyncPartialWarning => chapterVersesErrors.isNotEmpty;
+  String? get versesSyncWarningMessage =>
+      chapterVersesErrors.isEmpty ? null : chapterVersesErrors.values.first;
+  int get totalVersesAvailable => chapterVerses.values.fold<int>(
+        0,
+        (total, verses) => total + verses.length,
+      );
+  Map<int, List<Verse>> get chapterVerseCache => chapterVerses;
   bool isChapterLoading(int chapter) => _chapterVersesLoading.contains(chapter);
   Set<int> journeyCompletedDays(String journeyId) =>
       _journeyProgressById[journeyId] ?? const <int>{};
@@ -176,7 +196,8 @@ class AppState extends ChangeNotifier {
     try {
       dailyVerse = await repository.getDailyVerse();
       dailyVerseError = null;
-      offlineMode = repository.lastRequestUsedOfflineData;
+      offlineMode = repository.lastRequestUsedOfflineData &&
+          repository.lastRequestOfflineFallbackFromConnectivity;
     } catch (error, stackTrace) {
       dailyVerseError = _friendlyError(
         error,
@@ -207,6 +228,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> refreshFavorites() async {
+    _favoritesLoading = true;
+    notifyListeners();
+
     try {
       favorites = await repository.getFavorites();
       favoritesError = null;
@@ -219,8 +243,10 @@ class AppState extends ChangeNotifier {
         context: 'refreshFavorites',
       );
       _markOfflineFromError(error);
+    } finally {
+      _favoritesLoading = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   Future<void> refreshJourneys() async {
@@ -295,9 +321,8 @@ class AppState extends ChangeNotifier {
     try {
       chapters = await repository.getChapters(forceRefresh: forceRefresh);
       chaptersError = null;
-      if (repository.lastRequestUsedOfflineData) {
-        offlineMode = true;
-      }
+      offlineMode = repository.lastRequestUsedOfflineData &&
+          repository.lastRequestOfflineFallbackFromConnectivity;
     } catch (error, stackTrace) {
       if (chapters.isEmpty) {
         chaptersError = _friendlyError(
@@ -316,6 +341,8 @@ class AppState extends ChangeNotifier {
   List<Verse> versesForChapter(int chapter) {
     return chapterVerses[chapter] ?? const <Verse>[];
   }
+
+  List<Verse> chapterVersesFor(int chapter) => versesForChapter(chapter);
 
   String? chapterError(int chapter) => chapterVersesErrors[chapter];
 
@@ -340,9 +367,8 @@ class AppState extends ChangeNotifier {
         chapter,
         forceRefresh: forceRefresh,
       );
-      if (repository.lastRequestUsedOfflineData) {
-        offlineMode = true;
-      }
+      offlineMode = repository.lastRequestUsedOfflineData &&
+          repository.lastRequestOfflineFallbackFromConnectivity;
     } catch (error, stackTrace) {
       chapterVersesErrors[chapter] = _friendlyError(
         error,
@@ -353,6 +379,35 @@ class AppState extends ChangeNotifier {
     } finally {
       _chapterVersesLoading.remove(chapter);
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshChapterVerses(int chapter, {bool force = false}) async {
+    await loadChapterVerses(chapter, forceRefresh: force);
+  }
+
+  Future<void> refreshVerseChapters() async {
+    await refreshChapters(forceRefresh: true);
+  }
+
+  Future<void> syncAllVerses({
+    bool force = false,
+    bool allowDowngradeOverwrite = false,
+  }) async {
+    if (chapters.isEmpty || force) {
+      await refreshChapters(forceRefresh: force);
+    }
+
+    final chapterList = List<ChapterSummary>.from(chapters);
+    for (final chapter in chapterList) {
+      await loadChapterVerses(
+        chapter.chapter,
+        forceRefresh: force,
+      );
+    }
+
+    if (allowDowngradeOverwrite) {
+      // Compatibility no-op: sync is driven by forceRefresh.
     }
   }
 
@@ -798,6 +853,7 @@ class AppState extends ChangeNotifier {
     dailyVerseError = null;
     moodOptionsError = null;
     favoritesError = null;
+    _favoritesLoading = false;
     journeysError = null;
     chaptersError = null;
     chapters = const <ChapterSummary>[];

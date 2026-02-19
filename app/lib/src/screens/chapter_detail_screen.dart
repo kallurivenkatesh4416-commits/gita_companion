@@ -126,7 +126,7 @@ class _ChapterDetailScreenState extends State<ChapterDetailScreen> {
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
-                            verse.translation,
+                            verse.localizedTranslation(appState.languageCode),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),

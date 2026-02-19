@@ -184,7 +184,9 @@ class _VersesScreenState extends State<VersesScreen> {
                                 '${strings.t('chapter')} ${chapter.chapter}',
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
-                              subtitle: Text('$displayCount verses'),
+                              subtitle: Text(
+                                '$displayCount ${strings.t('verses')}',
+                              ),
                               trailing: const Icon(Icons.chevron_right_rounded),
                               onTap: () => Navigator.pushNamed(
                                 context,

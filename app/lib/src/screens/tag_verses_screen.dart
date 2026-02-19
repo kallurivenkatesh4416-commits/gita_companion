@@ -119,7 +119,7 @@ class _TagVersesScreenState extends State<TagVersesScreen> {
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         subtitle: Text(
-                          verse.translation,
+                          verse.localizedTranslation(appState.languageCode),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),

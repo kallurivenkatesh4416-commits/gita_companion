@@ -51,7 +51,7 @@ class GuidancePanel extends StatelessWidget {
                 color: colorScheme.outline.withValues(alpha: 0.45), height: 1),
             const SizedBox(height: 12),
             Text(
-              'Micro-practice: ${guidance.microPractice.title}',
+              '${copy.t('journey_micro_practice')}: ${guidance.microPractice.title}',
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 8),
@@ -63,7 +63,10 @@ class GuidancePanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-                'Duration: ${guidance.microPractice.durationMinutes} minute(s)'),
+              '${copy.t('duration')}: '
+              '${guidance.microPractice.durationMinutes} '
+              '${copy.t(guidance.microPractice.durationMinutes == 1 ? 'minute' : 'minutes')}',
+            ),
             const SizedBox(height: 12),
             Text(
               copy.t('reflect'),

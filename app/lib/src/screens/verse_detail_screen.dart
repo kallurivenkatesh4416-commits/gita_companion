@@ -38,7 +38,11 @@ class _VerseDetailScreenState extends State<VerseDetailScreen> {
             tooltip: strings.t('add_to_collection'),
             onPressed: () => showAddToCollectionSheet(
               context: context,
-              item: BookmarkItem.fromVerse(verse),
+              item: BookmarkItem.fromVerse(
+                verse,
+                translationOverride:
+                    verse.localizedTranslation(appState.languageCode),
+              ),
             ),
           ),
           IconButton(
@@ -76,7 +80,7 @@ class _VerseDetailScreenState extends State<VerseDetailScreen> {
             Text(strings.t('meaning'),
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            Text(verse.translation),
+            Text(verse.localizedTranslation(appState.languageCode)),
             const SizedBox(height: 16),
             VerseRecitationControl(
               verse: verse,

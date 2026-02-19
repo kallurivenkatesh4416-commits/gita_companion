@@ -48,7 +48,7 @@ class ShareCardService {
                   ref: verse.ref,
                   chapter: verse.chapter,
                   verseNumber: verse.verseNumber,
-                  translation: verse.translation,
+                  translation: verse.localizedTranslation(appState.languageCode),
                   sanskrit: verse.sanskrit,
                 ),
               ),
@@ -87,7 +87,7 @@ class ShareCardService {
 
       await Share.shareXFiles(
         <XFile>[XFile(file.path)],
-        text: 'Bhagavad Gita ${verse.ref}',
+        text: 'BG ${verse.ref}',
       );
     } catch (error, stackTrace) {
       debugPrint('[ShareCardService] $error');
