@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'src/api/api_client.dart';
+import 'src/i18n/app_strings.dart';
 import 'src/models/models.dart';
 import 'src/repositories/gita_repository.dart';
 import 'src/screens/ask_screen.dart';
@@ -93,9 +94,13 @@ class GitaCompanionApp extends StatelessWidget {
           }
 
           return MaterialPageRoute<void>(
-            builder: (_) => const Scaffold(
-              body: Center(child: Text('Route not found')),
-            ),
+            builder: (context) {
+              final languageCode = context.read<AppState>().languageCode;
+              final strings = AppStrings(languageCode);
+              return Scaffold(
+                body: Center(child: Text(strings.t('route_not_found'))),
+              );
+            },
           );
         },
       ),
