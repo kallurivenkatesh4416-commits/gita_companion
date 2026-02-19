@@ -85,7 +85,14 @@ class AppStrings {
 
   String t(String key) {
     final languageMap = _values[languageCode] ?? _values['en']!;
-    return languageMap[key] ?? _values['en']![key] ?? key;
+    if (languageMap.containsKey(key)) {
+      return languageMap[key]!;
+    }
+    final english = _values['en']![key];
+    if (english != null) {
+      return english;
+    }
+    return key;
   }
 
   String moodLabel(String mood) {
@@ -140,6 +147,7 @@ const Map<String, String> _enValues = <String, String>{
   'chatbot_subtitle': 'Conversation with verse-grounded guidance',
   'favorites': 'Favorites',
   'favorites_subtitle': 'Saved verses for revisit',
+  'empty_state_hint_favorites': 'Save a verse from its detail screen to keep it here.',
   'journal': 'Journal',
   'journal_subtitle': 'Reflection diary',
   'journeys': 'Journeys',
@@ -168,6 +176,7 @@ const Map<String, String> _enValues = <String, String>{
   'chapter': 'Chapter',
   'verses': 'verses',
   'verses_empty': 'No verses found for this chapter yet.',
+  'chapter_has_no_verses': 'No verses are available for this chapter right now.',
   'comfort_mode': 'Comfort Mode',
   'clarity_mode': 'Clarity Mode',
   'traditional_mode': 'Traditional Mode',
@@ -209,6 +218,20 @@ const Map<String, String> _enValues = <String, String>{
   'error_request':
       'Could not complete that request. Please review and try again.',
   'error_generic': 'Something went wrong. Please try again.',
+  'friendly_auth_error':
+      'There is a sign-in issue. Please refresh and try again.',
+  'friendly_server_error':
+      'The service is taking longer than usual. Please try again shortly.',
+  'friendly_network_error':
+      'We could not reach the server. Check your connection and retry.',
+  'friendly_network_timeout':
+      'The request timed out. Please try again from a stable connection.',
+  'friendly_verses_load_error':
+      'Could not load verses right now. Please try again.',
+  'friendly_mood_no_verse':
+      'Mood guidance is unavailable because no verse could be retrieved.',
+  'friendly_general_error':
+      'An unexpected problem occurred. Please try again in a moment.',
   'error_try_again_short':
       'I could not respond just now. Please take a breath and try again.',
   'voice_start': 'Voice input',
@@ -262,6 +285,9 @@ const Map<String, String> _enValues = <String, String>{
   'notification_reflect_prefix': 'Reflect',
   'notification_reflection_prompt':
       'What one intention will guide your next action?',
+  'preparing_image': 'Preparing image preview...',
+  'share_failed': 'Could not prepare the share image right now.',
+  'try_again': 'Try again',
   'clear_chat_history': 'Clear Chat History',
   'delete_local_data': 'Delete Local Data',
   'onboarding_tag': 'Personal Companion',
@@ -324,6 +350,17 @@ const Map<String, String> _enValues = <String, String>{
   'cancel': 'Cancel',
   'verse_bookmark': 'Verse',
   'answer_bookmark': 'AI Answer',
+  'tag_verses': 'Tag verses',
+  'tag_verses_empty': 'No tagged verses found yet.',
+  'tag_verses_count': 'Tagged verses',
+  'verses_browser': 'Verses Browser',
+  'verses_sync': 'Sync verses',
+  'verses_force_resync': 'Force resync',
+  'verses_sync_more_actions': 'More sync actions',
+  'verses_sync_incomplete_server_keep_offline':
+      'Sync incomplete; continue in offline mode.',
+  'verse_sync_count': 'Verses synced so far',
+  'verses_sync': 'Verses sync',
   'item_singular': 'item',
   'item_plural': 'items',
   'question_prefix': 'Q',
