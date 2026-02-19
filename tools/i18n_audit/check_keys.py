@@ -2,7 +2,7 @@
 import pathlib
 import re
 import sys
-from typing import Dict, Iterable, Set
+from typing import Set
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -18,7 +18,15 @@ def load_map(block: str) -> Set[str]:
 
 
 def extract_block(text: str, key: str) -> str:
-    pattern = rf"'{re.escape(key)}': <String, String>\{{([\s\S]*?)\n\s*\}},"
+    pattern = rf"'{re.escape(key)}'\s*:\s*(?:<[^>]+>)?\s*\{{([\s\S]*?)\n\s*\}},?"
+    match = re.search(pattern, text, re.MULTILINE)
+    if not match:
+        return ""
+    return match.group(1)
+
+
+def extract_named_map(text: str, map_name: str) -> str:
+    pattern = rf"const\s+Map(?:<[^>]+>)?\s+{re.escape(map_name)}\s*=\s*(?:<[^>]+>)?\s*\{{([\s\S]*?)\n\s*\}};"
     match = re.search(pattern, text, re.MULTILINE)
     if not match:
         return ""
@@ -37,14 +45,11 @@ def load_used_keys(src_root: pathlib.Path) -> Set[str]:
 
 def main() -> None:
     app_strings = I18N_PATH.read_text(encoding="utf-8")
-    en_block = re.search(
-        r"const Map<String, String> _enValues = <String, String>\{([\s\S]*?)\n\};",
-        app_strings,
-    )
+    en_block = extract_named_map(app_strings, "_enValues")
     if not en_block:
         print("Unable to locate _enValues block in app_strings.dart")
         sys.exit(1)
-    en_keys = load_map(en_block.group(1))
+    en_keys = load_map(en_block)
 
     src_root = ROOT / "app" / "lib"
     used_keys = load_used_keys(src_root)
@@ -53,7 +58,7 @@ def main() -> None:
     if missing_en:
         print("Missing keys in English map:")
         for key in missing_en:
-            print(f"  • {key}")
+            print(f"  - {key}")
         sys.exit(1)
 
     print("All used keys exist in English map.")
@@ -61,7 +66,7 @@ def main() -> None:
     for locale in LOCALES:
         block = extract_block(app_strings, locale)
         if not block:
-            print(f"⚠️ Locale '{locale}' block missing; skipping coverage check.")
+            print(f"Locale '{locale}' block missing; skipping coverage check.")
             continue
         locale_keys = load_map(block)
         missing = sorted(key for key in used_keys if key not in locale_keys)
