@@ -5,8 +5,12 @@ import 'src/api/api_client.dart';
 import 'src/models/models.dart';
 import 'src/repositories/gita_repository.dart';
 import 'src/screens/ask_screen.dart';
+import 'src/screens/chapter_detail_screen.dart';
+import 'src/screens/chapter_list_screen.dart';
+import 'src/screens/collections_screen.dart';
 import 'src/screens/favorites_screen.dart';
 import 'src/screens/home_screen.dart';
+import 'src/screens/journal_screen.dart';
 import 'src/screens/journeys_screen.dart';
 import 'src/screens/mood_screen.dart';
 import 'src/screens/onboarding_screen.dart';
@@ -45,12 +49,24 @@ class GitaCompanionApp extends StatelessWidget {
           '/chat': (_) => const AskScreen(),
           '/mood': (_) => const MoodCheckInScreen(),
           '/ritual': (_) => const RitualScreen(),
+          '/chapters': (_) => const ChapterListScreen(),
+          '/journal': (_) => const JournalScreen(),
           '/favorites': (_) => const FavoritesScreen(),
+          '/collections': (_) => const CollectionsScreen(),
           '/journeys': (_) => const JourneysScreen(),
           '/settings': (_) => const SettingsScreen(),
           '/verses': (_) => const VersesScreen(),
         },
         onGenerateRoute: (settings) {
+          if (settings.name == '/chapter') {
+            final chapter = settings.arguments;
+            if (chapter is ChapterSummary) {
+              return MaterialPageRoute<void>(
+                builder: (_) => ChapterDetailScreen(chapter: chapter),
+              );
+            }
+          }
+
           if (settings.name == '/verse') {
             final verse = settings.arguments;
             if (verse is Verse) {

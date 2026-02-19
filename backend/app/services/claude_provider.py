@@ -1,13 +1,12 @@
 ﻿import json
 import logging
 from collections.abc import Sequence
-from typing import Literal
 
 import httpx
 from pydantic import ValidationError
 
 from ..models import Verse
-from ..schemas import ChatResponse, ChatTurn, GuidanceResponse, LanguageCode
+from ..schemas import ChatResponse, ChatTurn, GuidanceMode, GuidanceResponse, LanguageCode
 from .guidance import extract_json
 from .language import language_instruction
 
@@ -18,6 +17,17 @@ ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 def _serialize_history(history: Sequence[ChatTurn]) -> list[dict[str, str]]:
     return [{"role": turn.role, "content": turn.content} for turn in history[-12:]]
+
+
+def _mode_style_instruction(mode: GuidanceMode) -> str:
+    if mode == "comfort":
+        return "Style: warm, reassuring, and concise."
+    if mode == "clarity":
+        return "Style: direct, concise, and action-focused."
+    return (
+        "Style: traditional Bhagavad Gita voice, respectful and dharma-centered, "
+        "with moderately detailed explanation."
+    )
 
 
 class ClaudeProvider:
@@ -32,7 +42,7 @@ class ClaudeProvider:
         self,
         *,
         topic: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> GuidanceResponse:
@@ -65,7 +75,7 @@ class ClaudeProvider:
         self,
         *,
         topic: str,
-        mode: str,
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> str:
@@ -81,7 +91,7 @@ class ClaudeProvider:
         ]
 
         schema = {
-            "mode": "comfort|clarity",
+            "mode": "comfort|clarity|traditional",
             "topic": "string",
             "verses": [
                 {
@@ -110,6 +120,7 @@ class ClaudeProvider:
             "Return strict JSON only - no markdown fences and no explanation outside JSON. "
             f"Schema: {json.dumps(schema)}\n\n"
             f"{language_instruction(language)}\n"
+            f"{_mode_style_instruction(mode)}\n"
             f"Mode: {mode}\n"
             f"Topic: {topic}\n"
             f"Available verses JSON: {json.dumps(verse_text, ensure_ascii=True)}"
@@ -128,7 +139,7 @@ class ClaudeChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -174,7 +185,7 @@ class ClaudeChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -190,7 +201,7 @@ class ClaudeChatProvider:
             for verse in verses[:3]
         ]
         schema = {
-            "mode": "comfort|clarity",
+            "mode": "comfort|clarity|traditional",
             "reply": "string",
             "verses": [
                 {
@@ -213,6 +224,7 @@ class ClaudeChatProvider:
             "Return strict JSON only - no markdown fences.\n"
             f"Schema: {json.dumps(schema)}\n"
             f"{language_instruction(language)}\n"
+            f"{_mode_style_instruction(mode)}\n"
             f"Mode: {mode}\n"
             f"Conversation history JSON: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"

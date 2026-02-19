@@ -1,0 +1,152 @@
+GITA COMPANION - APP BRAINSTORM NOTES
+=====================================
+
+1) WHAT THIS APP IS
+- Gita Companion is a mobile-first spiritual wellness app.
+- It combines Bhagavad Gita verse grounding with practical daily guidance.
+- The product tone is calm, respectful, and companion-first (not preachy, not guilt-driven).
+- Core promise: "One meaningful next step, grounded in verses."
+
+
+2) CORE EXPERIENCE GOALS
+- Reduce overwhelm on Home.
+- Keep one clear primary action each day.
+- Build daily habit retention with low friction.
+- Keep AI responses verse-grounded with citations/provenance.
+- Support multilingual use (EN, HI, TE, TA, KN, ML, ES).
+
+
+3) MAJOR FEATURES (CURRENT)
+- Home dashboard:
+  - Daily Verse card
+  - "Start Today (60 sec)" primary CTA
+  - Morning AI Greeting section (secondary, compact)
+  - Companion tools shortcuts (Mood, Chapters, Favorites, Journal, Collections, Journeys, Chat)
+- Daily Verse:
+  - Pulled from backend (`GET /daily-verse`)
+  - Cached/offline fallback
+- Morning Greeting:
+  - Generated via backend (`POST /morning-greeting`)
+  - Secondary content, compact regenerate behavior
+- 60-second Ritual flow:
+  - Step 1 mood select
+  - Step 2 daily verse
+  - Step 3 one action from mood guidance (`POST /moods/guidance`)
+  - Optional one-line reflection saved locally
+  - "Done today" indicator based on local completion timestamp
+- Chat/Ask:
+  - Verse-grounded AI responses
+  - Verification badge levels (VERIFIED/REVIEWED/RAW)
+  - Provenance/check details panel
+  - Streaming response support (SSE) with stop/cancel and fallback to non-streaming `/chat`
+- Verse browsing:
+  - Chapters list and chapter detail
+  - Verse detail screen
+  - Offline browse fallback from cached/bundled dataset
+- Personal data features (local-first):
+  - Favorites
+  - Collections
+  - Journal
+  - Past chat history
+- Notifications:
+  - Verse of the Day reminders (opt-in)
+  - Time window/custom time
+  - Pause toggle
+- Audio recitation path:
+  - Mapping-based curated asset approach
+  - Feature-gated if assets not present
+- Offline mode:
+  - Friendly offline notices
+  - Graceful degradation (AI chat online-only, browsing/local data still usable)
+
+
+4) UI STYLE + VISUAL LANGUAGE
+- Visual direction: calm spiritual warmth.
+- Typical palette: saffron/terracotta/earth tones with soft contrast.
+- Home hierarchy:
+  - Header (lightweight, not dominant)
+  - Daily Verse as main anchor
+  - Primary CTA for daily ritual
+  - Secondary sections collapsed or de-emphasized
+- Typography:
+  - Readable body + expressive spiritual heading treatment
+- Interaction principles:
+  - Minimal clutter
+  - One primary CTA per key screen
+  - Friendly error messages (no raw technical traces shown to user)
+
+
+5) SCREEN FLOW (USER JOURNEY)
+
+First launch:
+- Onboarding -> language/guidance/privacy/notifications preferences -> Home.
+
+Daily use (ideal happy path):
+- Open Home -> read Daily Verse -> tap "Start Today (60 sec)" ->
+  pick mood -> view verse -> get one actionable guidance step -> optional reflection -> mark done.
+
+Exploration paths:
+- Home -> Chapters -> Verse Detail -> Ask about this verse in Chat.
+- Home -> Mood check-in -> guidance + verse references.
+- Home -> Journal/Favorites/Collections/Journeys for continuity.
+
+Chat flow:
+- User asks question -> assistant streams response progressively ->
+  final response shows verification badge + details + verse provenance.
+- User can stop generation mid-stream.
+- If streaming fails, app falls back to regular non-stream `/chat`.
+
+Offline flow:
+- Home/Chapters show offline notices.
+- Verse browsing still works from cached/bundled content.
+- Local features (journal/bookmarks/collections/past chats) remain usable.
+- AI chat send is disabled with friendly message while offline.
+
+
+6) TECH SNAPSHOT (FOR BRAINSTORM CONTEXT)
+- Frontend: Flutter + Provider, centralized `AppState`.
+- Backend: FastAPI + SQLAlchemy.
+- DB: PostgreSQL (Docker compose, optional pgvector usage in retrieval stack).
+- Local persistence: SharedPreferences for onboarding/config/history/journal/ritual state.
+- Retrieval/grounding: verse-based, with verification metadata returned to client.
+
+
+7) WHAT ALREADY FEELS STRONG
+- Clear daily anchor (Daily Verse + ritual CTA).
+- Good balance of spiritual tone + practical action.
+- Multi-language baseline support.
+- Offline graceful handling for core non-AI use cases.
+- Verification/provenance transparency in AI responses.
+
+
+8) AREAS TO IMPROVE (HIGH-IMPACT IDEATION TOPICS)
+- Home simplification:
+  - What should be visible vs collapsible by default?
+- Ritual retention:
+  - How to improve completion rate without adding pressure?
+- Chat depth:
+  - Better short/long response modes, follow-up prompts, context carryover.
+- Personalization:
+  - Smarter suggestions based on mood patterns and recent reflections.
+- Accessibility:
+  - Font scaling, color contrast variants, one-hand ergonomics.
+- Notification quality:
+  - Better reminder timing intelligence and opt-down controls.
+- Insight loops:
+  - Weekly reflection summaries from local journal/mood trends.
+- Trust and grounding:
+  - Better provenance UI comprehension for non-technical users.
+
+
+9) READY-TO-PASTE CHATGPT PROMPT TEMPLATE
+
+"I am improving a Flutter + FastAPI app called Gita Companion.
+Current product: calm spiritual wellness companion with Daily Verse, 60-second ritual, mood guidance, verse-grounded chat, verification badges, offline verse browsing, journal/bookmarks/collections, and opt-in Verse-of-the-Day notifications.
+Please propose 15 improvements prioritized by user impact and implementation effort.
+Constraints:
+- Keep Flutter + Provider + AppState architecture.
+- No major refactors.
+- Keep Home calm with one primary CTA.
+- Keep verse grounding/provenance in AI responses.
+- Include for each suggestion: why it helps, UX change, minimal technical approach, and risk level."
+

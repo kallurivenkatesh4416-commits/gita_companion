@@ -1,0 +1,480 @@
+================================================================================
+  SHARE AS IMAGE — STEP-BY-STEP IMPLEMENTATION GUIDE
+  Gita Companion App
+  Date: 2026-02-18
+================================================================================
+
+CURRENT APP STATE
+-----------------
+- Flutter app with Provider state management + SharedPreferences
+- Theme: saffron/terracotta/parchment (app_theme.dart)
+- Fonts: Cormorant Garamond (headings), Source Sans 3 / Source Serif 4 (body)
+- Verse Detail AppBar already has 2 icons: bookmark + favorite (at capacity)
+- Home screen has a VersePreviewCard with Om watermark + tag chips
+- No share_plus or path_provider in pubspec.yaml yet
+
+
+================================================================================
+STEP 1: ADD DEPENDENCIES
+================================================================================
+
+File: app/pubspec.yaml
+
+Under "dependencies:", add these two lines (after the existing deps):
+
+  share_plus: ^10.0.0
+  path_provider: ^2.1.0
+
+Then run:
+
+  cd app
+  flutter pub get
+
+WHY FIRST: Everything else depends on these packages being available.
+           Do this before writing any Dart code so your IDE shows no
+           red squiggles while you work.
+
+
+================================================================================
+STEP 2: ADD I18N STRINGS
+================================================================================
+
+File: app/lib/src/i18n/app_strings.dart
+
+Add 3 new keys to the English map (_enValues), near the bottom alongside
+the other keys (before the closing brace):
+
+  'share': 'Share',
+  'preparing_image': 'Preparing image...',
+  'share_failed': 'Unable to share right now.',
+
+Then add translations for each language map that has substantial coverage:
+
+  Hindi ('hi' map):
+    'share': 'Share karein',
+    'preparing_image': 'Image taiyaar ho rahi hai...',
+    'share_failed': 'Abhi share nahin ho paya.',
+
+  Telugu ('te' map):
+    'share': 'Share cheyyi',
+    'preparing_image': 'Image tayyaru avutundi...',
+    'share_failed': 'Ippudu share cheyadam kaaledu.',
+
+  Spanish ('es' map):
+    'share': 'Compartir',
+    'preparing_image': 'Preparando imagen...',
+    'share_failed': 'No se pudo compartir en este momento.',
+
+For ta, kn, ml — just skip them. The fallback to English will handle it.
+
+WHY SECOND: Strings are a dependency for the UI code you write next.
+            Having them ready means no placeholder strings in your widgets.
+
+
+================================================================================
+STEP 3: CREATE THE SHARE CARD WIDGET (offscreen-only)
+================================================================================
+
+File: app/lib/src/widgets/verse_share_card.dart (NEW FILE)
+
+This widget is NEVER shown on screen. It exists only to be rendered into a
+PNG image via RepaintBoundary.
+
+DESIGN SPEC:
+- Fixed size: 1080 x 1350 logical pixels (4:5 ratio, Instagram-friendly)
+- Background: LinearGradient top-to-bottom
+    Color(0xFFF6ECDB) -> Color(0xFFE8D5B8) (warm parchment gradient)
+- Content layout (top to bottom, centered horizontally, generous padding):
+
+    [48px top padding]
+
+    "Bhagavad Gita"
+      Font: GoogleFonts.cormorantGaramond, size 54, weight 600
+      Color: Color(0xFF92431A)  (terracotta, same as app _primary)
+
+    [12px gap]
+
+    "Chapter {X} • Verse {Y}"
+      Font: GoogleFonts.sourceSans3, size 28, weight 400
+      Color: Color(0xFF635647)  (muted ink, same as app _inkMuted)
+
+    [32px gap]
+
+    Decorative divider line:
+      Centered, 120px wide, 1.5px thick
+      Color: Color(0xFF92431A) at 40% opacity
+
+    [32px gap]
+
+    Translation text (or Sanskrit fallback if translation is empty):
+      Font: GoogleFonts.sourceSerif4, size 34, weight 400, height 1.7
+      Color: Color(0xFF201A14) (ink, same as app _ink)
+      Max lines: 8, overflow: ellipsis
+      Horizontal padding: 64px each side
+      Text alignment: center
+
+    [Spacer — pushes footer to bottom]
+
+    Om watermark (positioned behind text, right-center area):
+      Character: \u0950
+      Font: GoogleFonts.cormorantGaramond, size 280, weight 300
+      Color: Color(0xFF92431A) at 5% opacity
+      Use Positioned widget in a Stack
+
+    [Bottom area]
+
+    Footer: "Gita Companion"
+      Font: GoogleFonts.sourceSans3, size 22, weight 400
+      Color: Color(0xFF635647) at 60% opacity
+      Centered
+
+    [40px bottom padding]
+
+WIDGET STRUCTURE:
+  - StatelessWidget named VerseShareCard
+  - Constructor takes: String ref, int chapter, int verseNumber,
+    String translation, String sanskrit
+  - Wrap everything in a SizedBox(width: 1080, height: 1350)
+  - Use a Stack: gradient Container as base, Om watermark positioned,
+    content Column on top
+
+IMPORTANT NOTES:
+  - Use GoogleFonts.xxx() explicitly for every Text widget.
+    Do NOT rely on inherited Theme — this widget renders offscreen
+    without the MaterialApp ancestor, so theme fonts won't apply.
+  - Use hardcoded colors from app_theme.dart constants (copy the hex
+    values). Don't reference Theme.of(context).
+  - Decide translation vs sanskrit: if translation.trim().isNotEmpty,
+    show translation. Otherwise show sanskrit.
+
+
+================================================================================
+STEP 4: CREATE THE SHARE SERVICE
+================================================================================
+
+File: app/lib/src/services/share_card_service.dart (NEW FILE)
+
+This is a small helper class with one public static method:
+
+  static Future<void> shareVerseCard(
+    BuildContext context,
+    Verse verse,
+  ) async
+
+IMPLEMENTATION FLOW:
+
+  1. Show a SnackBar with "Preparing image..." (use strings.t('preparing_image'))
+
+  2. Create a GlobalKey<State> for the RepaintBoundary
+
+  3. Create an OverlayEntry that inserts the share card offscreen:
+       - Wrap VerseShareCard in a RepaintBoundary with the GlobalKey
+       - Wrap that in a Material widget (needed for text rendering)
+       - Position it offscreen: use Positioned(left: -9999, top: -9999)
+       - Insert into Overlay.of(context)
+
+  4. Wait one frame for the widget to render:
+       await Future.delayed(const Duration(milliseconds: 100));
+     (This also gives Google Fonts time to load the typeface.)
+
+  5. Capture the image:
+       final boundary = globalKey.currentContext!
+           .findRenderObject()! as RenderRepaintBoundary;
+       final image = await boundary.toImage(pixelRatio: 3.0);
+       final byteData = await image.toByteData(
+           format: ui.ImageByteFormat.png);
+       final pngBytes = byteData!.buffer.asUint8List();
+
+  6. Write to a temp file:
+       final tempDir = await getTemporaryDirectory();
+       final file = File('${tempDir.path}/gita_verse_${verse.chapter}_${verse.verseNumber}.png');
+       await file.writeAsBytes(pngBytes);
+
+  7. Share via native share sheet:
+       await Share.shareXFiles(
+         [XFile(file.path)],
+         text: 'Bhagavad Gita ${verse.ref}',
+       );
+
+  8. Clean up: remove the OverlayEntry
+       overlayEntry.remove();
+
+  9. Wrap steps 2-8 in a try/catch:
+       On error:
+         - Remove overlayEntry if it was inserted (use a try/finally)
+         - Show SnackBar: strings.t('share_failed')
+         - debugPrint the error for console logging only
+
+REQUIRED IMPORTS:
+  - dart:ui as ui
+  - dart:io (File)
+  - package:flutter/rendering.dart (RenderRepaintBoundary)
+  - package:path_provider/path_provider.dart
+  - package:share_plus/share_plus.dart
+  - Your verse_share_card.dart
+  - Your models.dart (for Verse type)
+  - Your app_strings.dart (for i18n)
+
+IMPORTANT:
+  - The OverlayEntry trick is the standard Flutter pattern for rendering
+    a widget offscreen. The key is positioning it far off-screen so the
+    user never sees a flash.
+  - pixelRatio: 3.0 gives a crisp 3240x4050 output image. This is
+    high quality for sharing but not so large it causes memory issues.
+
+
+================================================================================
+STEP 5: ADD SHARE BUTTON TO VERSE DETAIL SCREEN
+================================================================================
+
+File: app/lib/src/screens/verse_detail_screen.dart
+
+PLACEMENT DECISION:
+  Do NOT add to the AppBar. It already has bookmark + favorite (2 icons).
+  Three icons in a row looks cluttered and confusing.
+
+  Instead, add an OutlinedButton.icon BELOW the existing "Ask about this
+  verse" FilledButton. This creates a clear visual hierarchy:
+    - FilledButton = primary action (Ask)
+    - OutlinedButton = secondary action (Share)
+
+WHAT TO CHANGE:
+
+  1. Add import at top:
+       import '../services/share_card_service.dart';
+
+  2. Find the existing FilledButton.icon for "Ask about this verse"
+     (around line 94-102). AFTER its closing parenthesis and the
+     SizedBox(height: 12) that follows, add:
+
+       const SizedBox(height: 10),
+       SizedBox(
+         width: double.infinity,
+         child: OutlinedButton.icon(
+           onPressed: () => ShareCardService.shareVerseCard(context, verse),
+           icon: const Icon(Icons.share_outlined),
+           label: Text(strings.t('share')),
+         ),
+       ),
+
+  3. That's it. Do not touch the AppBar actions, the recitation control,
+     the tags, or anything else.
+
+VISUAL RESULT:
+  [Sanskrit section]
+  [Transliteration section]
+  [Meaning section]
+  [Recitation control]
+  [ ========= Ask about this verse ========= ]   <-- FilledButton (primary)
+  [ --------- Share --------- ]                   <-- OutlinedButton (secondary)
+  [Tags row]
+
+
+================================================================================
+STEP 6: ADD SHARE ICON TO HOME DAILY VERSE CARD
+================================================================================
+
+File: app/lib/src/widgets/verse_preview_card.dart
+
+PLACEMENT DECISION:
+  The card already has a top-right arrow icon (arrow_forward_rounded).
+  The whole card is tappable to navigate. The arrow is a visual affordance
+  but not an interactive button — it's just decoration.
+
+  Add an optional onShare callback. When provided, show a small share icon
+  next to the arrow in the top-right Row.
+
+WHAT TO CHANGE:
+
+  1. Add a new optional callback to the constructor:
+       final VoidCallback? onShare;
+
+     Update constructor:
+       const VersePreviewCard({
+         super.key,
+         required this.verse,
+         this.onTap,
+         this.onShare,    // <-- add this
+       });
+
+  2. In the build method, find the Row that contains the pill badge
+     and the arrow icon (around line 43-67). Modify the Row's children:
+
+     Replace:
+       const Spacer(),
+       Icon(
+         Icons.arrow_forward_rounded,
+         color: colorScheme.onSurfaceVariant,
+       ),
+
+     With:
+       const Spacer(),
+       if (onShare != null)
+         IconButton(
+           icon: Icon(
+             Icons.share_outlined,
+             size: 20,
+             color: colorScheme.onSurfaceVariant,
+           ),
+           onPressed: onShare,
+           tooltip: 'Share',
+           visualDensity: VisualDensity.compact,
+           padding: EdgeInsets.zero,
+           constraints: const BoxConstraints(),
+         ),
+       if (onShare != null) const SizedBox(width: 8),
+       Icon(
+         Icons.arrow_forward_rounded,
+         color: colorScheme.onSurfaceVariant,
+       ),
+
+  That's it for the widget. The share icon only appears when the
+  callback is provided, so existing usages are unaffected.
+
+  3. Now wire it up in home_screen.dart.
+
+File: app/lib/src/screens/home_screen.dart
+
+  Add import at top:
+    import '../services/share_card_service.dart';
+
+  Find the VersePreviewCard usage (around line 70-77). Add the onShare
+  callback:
+
+    VersePreviewCard(
+      verse: appState.dailyVerse!,
+      onTap: () => Navigator.pushNamed(
+        context,
+        '/verse',
+        arguments: appState.dailyVerse,
+      ),
+      onShare: () => ShareCardService.shareVerseCard(    // <-- add this
+        context,
+        appState.dailyVerse!,
+      ),
+    )
+
+
+================================================================================
+STEP 7: RUN CHECKS
+================================================================================
+
+Run in order:
+
+  cd app
+
+  # 1. Analyze for errors/warnings
+  flutter analyze
+
+  Fix any issues before proceeding. Common things to watch for:
+    - Missing imports
+    - Unused imports
+    - Type mismatches on the Verse model fields
+
+  # 2. Build release APK
+  flutter build apk --release
+
+  This must succeed. If the desugaring error returns, it was already
+  fixed in build.gradle.kts (isCoreLibraryDesugaringEnabled = true).
+
+
+================================================================================
+STEP 8: UPDATE IMPLEMENTATION NOTES
+================================================================================
+
+File: docs/IMPLEMENTATION_NOTES.md
+
+Add a new section at the top (or after the last entry):
+
+  ## Milestone: Share as Image (Phase 1) — Verse Cards
+
+  **Goal**: Allow users to share a beautifully formatted verse card as a
+  PNG image from Verse Detail and Home Daily Verse.
+
+  **Key changes**:
+  - New offscreen widget renders verse data onto a saffron/parchment card
+  - RepaintBoundary captures widget as PNG, shared via native share sheet
+  - Share button placed as secondary action (OutlinedButton) in verse detail
+  - Small share icon added to daily verse card on home screen
+
+  **Files changed**:
+  - `widgets/verse_share_card.dart` (new)
+  - `services/share_card_service.dart` (new)
+  - `widgets/verse_preview_card.dart` (added onShare callback)
+  - `screens/verse_detail_screen.dart` (added Share button)
+  - `screens/home_screen.dart` (wired onShare to daily verse card)
+  - `i18n/app_strings.dart` (3 new keys: share, preparing_image, share_failed)
+  - `pubspec.yaml` (added share_plus, path_provider)
+
+  **Checks run**: flutter analyze (0 issues), flutter build apk --release (success)
+
+  **Notes/Risks**:
+  - Google Fonts in offscreen widget: 100ms delay before capture allows
+    font loading. If fonts fail, system fallback renders instead.
+  - Single template only (terracotta parchment). Phase 2 can add template
+    picker if users request it.
+  - No network calls. Fully offline.
+
+
+================================================================================
+STEP 9: VERIFY MANUALLY
+================================================================================
+
+  Test 1 — Verse Detail Share:
+    1. Open any chapter > tap a verse > reach Verse Detail screen
+    2. Scroll down past the recitation control
+    3. Tap the "Share" outlined button (below "Ask about this verse")
+    4. Expect: brief "Preparing image..." snackbar, then native share sheet
+       opens showing a clean verse card image
+    5. Verify: image has gradient background, verse ref, translation text,
+       Om watermark, "Gita Companion" footer
+    6. Share to any app (WhatsApp, save to gallery, etc.) to confirm
+       the image is not cropped and looks correct
+
+  Test 2 — Home Daily Verse Share:
+    1. Go to Home screen
+    2. Look at the Daily Verse card — top-right should now show a small
+       share icon (next to the arrow)
+    3. Tap the share icon
+    4. Expect: same flow — snackbar, then share sheet with verse card image
+    5. Verify: card shows the daily verse content correctly
+
+  Test 3 — Error handling:
+    1. If you can simulate a rendering failure (hard to do), verify that
+       a calm snackbar appears: "Unable to share right now."
+    2. Check debug console for the technical error log
+
+  Test 4 — Long verse text:
+    1. Find a verse with a long translation (some Chapter 2 verses are long)
+    2. Share it and verify text truncates with ellipsis, not overflowing
+       or breaking the card layout
+
+  Test 5 — Release APK:
+    1. Install the release APK on a physical device
+    2. Repeat tests 1 and 2 on the actual device
+    3. Verify fonts render correctly (not falling back to Roboto)
+
+
+================================================================================
+EXECUTION ORDER SUMMARY
+================================================================================
+
+  1. pubspec.yaml          — add share_plus + path_provider, pub get
+  2. app_strings.dart      — add 3 i18n keys (en, hi, te, es)
+  3. verse_share_card.dart — create the offscreen card widget (NEW)
+  4. share_card_service.dart — create the render+share helper (NEW)
+  5. verse_detail_screen.dart — add OutlinedButton below "Ask" button
+  6. verse_preview_card.dart — add optional onShare callback + icon
+  7. home_screen.dart      — wire onShare to daily verse card
+  8. flutter analyze        — fix any issues
+  9. flutter build apk --release — confirm build passes
+  10. IMPLEMENTATION_NOTES.md — document the milestone
+  11. Manual testing         — verify both entry points work
+
+TOTAL NEW FILES: 2
+TOTAL EDITED FILES: 5
+ESTIMATED LINES OF NEW CODE: ~200-250
+
+================================================================================
+END OF GUIDE
+================================================================================

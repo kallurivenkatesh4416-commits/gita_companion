@@ -1,13 +1,13 @@
 ﻿import json
 import logging
 from collections.abc import Sequence
-from typing import Literal, Protocol
+from typing import Protocol
 
 import httpx
 from pydantic import ValidationError
 
 from ..models import Verse
-from ..schemas import ChatResponse, ChatTurn, GuidanceVerse, LanguageCode
+from ..schemas import ChatResponse, ChatTurn, GuidanceMode, GuidanceVerse, LanguageCode
 from .guidance import extract_json
 from .language import language_instruction
 
@@ -19,7 +19,7 @@ class ChatProvider(Protocol):
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -27,14 +27,15 @@ class ChatProvider(Protocol):
         ...
 
 
-def _build_verse_payload(verses: Sequence[Verse], mode: Literal["comfort", "clarity"]) -> list[GuidanceVerse]:
+def _build_verse_payload(verses: Sequence[Verse], mode: GuidanceMode) -> list[GuidanceVerse]:
     payload: list[GuidanceVerse] = []
     for verse in verses[:3]:
-        reason = (
-            "This verse helps with emotional steadiness."
-            if mode == "comfort"
-            else "This verse supports clear action and discernment."
-        )
+        if mode == "comfort":
+            reason = "This verse helps with emotional steadiness."
+        elif mode == "clarity":
+            reason = "This verse supports clear action and discernment."
+        else:
+            reason = "This verse supports a traditional dharma-centered reflection."
         payload.append(
             GuidanceVerse(
                 verse_id=verse.id,
@@ -52,12 +53,27 @@ def _serialize_history(history: Sequence[ChatTurn]) -> list[dict[str, str]]:
     return [{"role": turn.role, "content": turn.content} for turn in history[-12:]]
 
 
+def _mode_style_instruction(mode: GuidanceMode) -> str:
+    if mode == "comfort":
+        return (
+            "Style: warm, emotionally supportive, and concise."
+        )
+    if mode == "clarity":
+        return (
+            "Style: direct, concise, and action-oriented."
+        )
+    return (
+        "Style: traditional Bhagavad Gita voice, respectful and dharma-centered, "
+        "with slightly richer explanation than clarity mode."
+    )
+
+
 class MockChatProvider:
     def generate(
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -68,8 +84,17 @@ class MockChatProvider:
             "en": {
                 "comfort": "You are not alone in this. Let us make this gentle and practical.",
                 "clarity": "Let us simplify this into one clear, disciplined next move.",
+                "traditional": (
+                    "Let us approach this through dharma, self-discipline, and offering of action."
+                ),
                 "action": "Pause for one minute, read the first verse once, then complete one focused task immediately.",
+                "traditional_action": (
+                    "Pause for one minute, recite the first verse once, then perform one duty-aligned action as an offering."
+                ),
                 "reflect": "What can I do now with sincerity, without clinging to the result?",
+                "traditional_reflect": (
+                    "What duty can I perform now as worship, without attachment to result?"
+                ),
             },
             "hi": {
                 "comfort": "Aap ismein akele nahin hain. Isse saral aur vyavaharik rakhte hain.",
@@ -110,11 +135,22 @@ class MockChatProvider:
         }
         selected_language = language if language in tone_by_language else "en"
         copy = tone_by_language[selected_language]
-        tone = copy["comfort"] if mode == "comfort" else copy["clarity"]
+        tone = {
+            "comfort": copy["comfort"],
+            "clarity": copy["clarity"],
+            "traditional": copy.get("traditional", copy["clarity"]),
+        }[mode]
+        action_step = copy["action"] if mode != "traditional" else copy.get("traditional_action", copy["action"])
+        reflection_prompt = copy["reflect"] if mode != "traditional" else copy.get("traditional_reflect", copy["reflect"])
         reply_by_language = {
             "en": (
                 f"{tone} Your question was: '{message}'. "
                 f"Begin with verse {primary_ref}, then apply one concrete action in the next hour."
+                if mode != "traditional"
+                else (
+                    f"{tone} Your question was: '{message}'. Begin with verse {primary_ref}, "
+                    "reflect briefly on its dharma teaching, then do one duty-aligned action in the next hour."
+                )
             ),
             "hi": (
                 f"{tone} Aapka prashn tha: '{message}'. "
@@ -145,8 +181,8 @@ class MockChatProvider:
             mode=mode,
             reply=reply_by_language[selected_language],
             verses=verse_payload,
-            action_step=copy["action"],
-            reflection_prompt=copy["reflect"],
+            action_step=action_step,
+            reflection_prompt=reflection_prompt,
             safety={"flagged": False, "message": None},
         )
 
@@ -161,7 +197,7 @@ class GeminiChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -198,7 +234,7 @@ class GeminiChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -214,7 +250,7 @@ class GeminiChatProvider:
             for verse in verses[:3]
         ]
         schema = {
-            "mode": "comfort|clarity",
+            "mode": "comfort|clarity|traditional",
             "reply": "string",
             "verses": [
                 {
@@ -235,6 +271,7 @@ class GeminiChatProvider:
             "Keep tone practical, warm, and concise. Return strict JSON only.\n"
             f"Schema: {json.dumps(schema)}\n"
             f"{language_instruction(language)}\n"
+            f"{_mode_style_instruction(mode)}\n"
             f"Mode: {mode}\n"
             f"Conversation history JSON: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"
@@ -252,7 +289,7 @@ class OllamaChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -291,7 +328,7 @@ class OllamaChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -312,8 +349,9 @@ class OllamaChatProvider:
             "1) Use only verses in Available verses JSON.\n"
             "2) Do not invent verse numbers.\n"
             "3) Return strict JSON only in this structure:\n"
-            '{"mode":"comfort|clarity","reply":"...","verses":[{"verse_id":47,"ref":"2.47","sanskrit":"...","transliteration":"...","translation":"...","why_this":"..."}],"action_step":"...","reflection_prompt":"...","safety":{"flagged":false,"message":null}}\n'
+            '{"mode":"comfort|clarity|traditional","reply":"...","verses":[{"verse_id":47,"ref":"2.47","sanskrit":"...","transliteration":"...","translation":"...","why_this":"..."}],"action_step":"...","reflection_prompt":"...","safety":{"flagged":false,"message":null}}\n'
             f"{language_instruction(language)}\n"
+            f"{_mode_style_instruction(mode)}\n"
             f"Mode: {mode}\n"
             f"Conversation history JSON: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"

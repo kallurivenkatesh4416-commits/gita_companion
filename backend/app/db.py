@@ -24,9 +24,39 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def ensure_schema_compatibility() -> None:
+    """Apply idempotent compatibility patches for existing local databases."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE IF EXISTS verses
+                  ADD COLUMN IF NOT EXISTS chapter_name VARCHAR(64) NOT NULL DEFAULT ''
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE IF EXISTS verses
+                  ADD COLUMN IF NOT EXISTS translation_hi TEXT NOT NULL DEFAULT ''
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE IF EXISTS verses
+                  ADD COLUMN IF NOT EXISTS source JSONB
+                """
+            )
+        )
+
+
 def init_db() -> None:
     from . import models  # noqa: F401
 
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(bind=engine)
+    ensure_schema_compatibility()

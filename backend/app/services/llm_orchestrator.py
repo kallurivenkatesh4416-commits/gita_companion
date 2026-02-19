@@ -5,10 +5,10 @@ import logging
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from ..models import Verse
-from ..schemas import ChatResponse, ChatTurn, GuidanceResponse, LanguageCode
+from ..schemas import ChatResponse, ChatTurn, GuidanceMode, GuidanceResponse, LanguageCode
 from .router import ModelChoice, route_query
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ class LLMOrchestrator:
         self,
         *,
         topic: str,
-        mode: Literal['comfort', 'clarity'],
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> tuple[GuidanceResponse, str]:
@@ -115,7 +115,7 @@ class LLMOrchestrator:
         self,
         *,
         message: str,
-        mode: Literal['comfort', 'clarity'],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],

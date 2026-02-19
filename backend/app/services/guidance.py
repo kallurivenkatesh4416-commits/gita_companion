@@ -1,13 +1,13 @@
 ﻿import json
 import logging
 from collections.abc import Sequence
-from typing import Literal, Protocol
+from typing import Protocol
 
 import httpx
 from pydantic import ValidationError
 
 from ..models import Verse
-from ..schemas import GuidanceResponse, GuidanceVerse, LanguageCode
+from ..schemas import GuidanceMode, GuidanceResponse, GuidanceVerse, LanguageCode
 from .language import language_instruction
 
 logger = logging.getLogger(__name__)
@@ -18,21 +18,22 @@ class GuidanceProvider(Protocol):
         self,
         *,
         topic: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> GuidanceResponse:
         ...
 
 
-def _build_verse_payload(verses: Sequence[Verse], mode: Literal["comfort", "clarity"]) -> list[GuidanceVerse]:
+def _build_verse_payload(verses: Sequence[Verse], mode: GuidanceMode) -> list[GuidanceVerse]:
     payload: list[GuidanceVerse] = []
     for verse in verses[:3]:
-        reason = (
-            "This verse supports emotional steadiness and self-awareness."
-            if mode == "comfort"
-            else "This verse supports disciplined action and clear thinking."
-        )
+        if mode == "comfort":
+            reason = "This verse supports emotional steadiness and self-awareness."
+        elif mode == "clarity":
+            reason = "This verse supports disciplined action and clear thinking."
+        else:
+            reason = "This verse supports dharma-centered reflection with a traditional tone."
         payload.append(
             GuidanceVerse(
                 verse_id=verse.id,
@@ -46,12 +47,27 @@ def _build_verse_payload(verses: Sequence[Verse], mode: Literal["comfort", "clar
     return payload
 
 
+def _mode_style_instruction(mode: GuidanceMode) -> str:
+    if mode == "comfort":
+        return (
+            "Style: warm and reassuring. Keep responses concise, gentle, and practical."
+        )
+    if mode == "clarity":
+        return (
+            "Style: direct and action-oriented. Keep responses brief with crisp next steps."
+        )
+    return (
+        "Style: traditional Bhagavad Gita voice. Use respectful, dharma-centered language "
+        "with slightly richer detail than clarity mode while staying practical."
+    )
+
+
 class MockProvider:
     def generate(
         self,
         *,
         topic: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> GuidanceResponse:
@@ -61,14 +77,29 @@ class MockProvider:
             "en": {
                 "comfort": "Take one small gentle step and steady your breath.",
                 "clarity": "Choose the next right action and execute it with focus.",
+                "traditional": "Act from dharma with steadiness, humility, and devotion.",
                 "long": (
                     "Anchor attention in what is in your control. "
                     "Read one verse slowly, notice one practical lesson, and apply it to the next hour."
                 ),
+                "traditional_long": (
+                    "Steady your attention in dharma and nishkama karma. "
+                    "Read one verse with reverence, contemplate its inner meaning, and live one duty in the next hour."
+                ),
                 "title": "One-Minute Grounding",
+                "traditional_title": "One-Minute Dharma Reflection",
                 "step_1": "Inhale for 4 counts, exhale for 6 counts, repeat five times.",
                 "step_2": "Read the first selected verse once and name one action you can do now.",
+                "traditional_step_1": (
+                    "Take 5 deep breaths, remembering you are responsible for action, not the fruits."
+                ),
+                "traditional_step_2": (
+                    "Recite or read the first selected verse and commit to one duty-aligned action now."
+                ),
                 "reflect": "What is one action I can complete today without attachment to the outcome?",
+                "traditional_reflect": (
+                    "Which duty can I perform today as an offering, without attachment to results?"
+                ),
             },
             "hi": {
                 "comfort": "एक छोटा सा कोमल कदम लें और अपनी सांस को स्थिर करें।",
@@ -146,21 +177,32 @@ class MockProvider:
         selected_language = language if language in tone_by_language else "en"
         copy = tone_by_language[selected_language]
 
+        short_text = {
+            "comfort": copy["comfort"],
+            "clarity": copy["clarity"],
+            "traditional": copy.get("traditional", copy["clarity"]),
+        }[mode]
+        long_text = copy["long"] if mode != "traditional" else copy.get("traditional_long", copy["long"])
+        practice_title = copy["title"] if mode != "traditional" else copy.get("traditional_title", copy["title"])
+        practice_step_1 = copy["step_1"] if mode != "traditional" else copy.get("traditional_step_1", copy["step_1"])
+        practice_step_2 = copy["step_2"] if mode != "traditional" else copy.get("traditional_step_2", copy["step_2"])
+        reflection_prompt = copy["reflect"] if mode != "traditional" else copy.get("traditional_reflect", copy["reflect"])
+
         return GuidanceResponse(
             mode=mode,
             topic=topic,
             verses=verse_payload,
-            guidance_short=copy["comfort"] if mode == "comfort" else copy["clarity"],
-            guidance_long=copy["long"],
+            guidance_short=short_text,
+            guidance_long=long_text,
             micro_practice={
-                "title": copy["title"],
+                "title": practice_title,
                 "steps": [
-                    copy["step_1"],
-                    copy["step_2"],
+                    practice_step_1,
+                    practice_step_2,
                 ],
                 "duration_minutes": 1,
             },
-            reflection_prompt=copy["reflect"],
+            reflection_prompt=reflection_prompt,
             safety={"flagged": False, "message": None},
         )
 
@@ -175,7 +217,7 @@ class GeminiProvider:
         self,
         *,
         topic: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> GuidanceResponse:
@@ -200,7 +242,14 @@ class GeminiProvider:
             logger.warning("Falling back to mock provider after Gemini failure: %s", exc)
             return self.fallback.generate(topic=topic, mode=mode, language=language, verses=verses)
 
-    def _build_prompt(self, *, topic: str, mode: str, language: LanguageCode, verses: Sequence[Verse]) -> str:
+    def _build_prompt(
+        self,
+        *,
+        topic: str,
+        mode: GuidanceMode,
+        language: LanguageCode,
+        verses: Sequence[Verse],
+    ) -> str:
         verse_text = []
         for verse in verses[:3]:
             verse_text.append(
@@ -214,7 +263,7 @@ class GeminiProvider:
             )
 
         schema = {
-            "mode": "comfort|clarity",
+            "mode": "comfort|clarity|traditional",
             "topic": "string",
             "verses": [
                 {
@@ -242,6 +291,7 @@ class GeminiProvider:
             "Do not invent verse references. Return strict JSON only with this schema: "
             f"{json.dumps(schema)}\n\n"
             f"{language_instruction(language)}\n"
+            f"{_mode_style_instruction(mode)}\n"
             f"Mode: {mode}\n"
             f"Topic: {topic}\n"
             f"Available verses JSON: {json.dumps(verse_text, ensure_ascii=True)}"

@@ -1,13 +1,12 @@
 ﻿import json
 import logging
 from collections.abc import Sequence
-from typing import Literal
 
 import httpx
 from pydantic import ValidationError
 
 from ..models import Verse
-from ..schemas import ChatResponse, ChatTurn, GuidanceResponse, LanguageCode
+from ..schemas import ChatResponse, ChatTurn, GuidanceMode, GuidanceResponse, LanguageCode
 from .guidance import extract_json
 from .language import language_instruction
 
@@ -18,6 +17,17 @@ OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 
 def _serialize_history(history: Sequence[ChatTurn]) -> list[dict[str, str]]:
     return [{"role": turn.role, "content": turn.content} for turn in history[-12:]]
+
+
+def _mode_style_instruction(mode: GuidanceMode) -> str:
+    if mode == "comfort":
+        return "Style: warm, reassuring, and concise."
+    if mode == "clarity":
+        return "Style: direct, concise, and action-focused."
+    return (
+        "Style: traditional Bhagavad Gita voice, respectful and dharma-centered, "
+        "with moderately detailed explanation."
+    )
 
 
 class CodexGuidanceProvider:
@@ -32,7 +42,7 @@ class CodexGuidanceProvider:
         self,
         *,
         topic: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> GuidanceResponse:
@@ -70,7 +80,7 @@ class CodexGuidanceProvider:
         self,
         *,
         topic: str,
-        mode: str,
+        mode: GuidanceMode,
         language: LanguageCode,
         verses: Sequence[Verse],
     ) -> str:
@@ -85,7 +95,7 @@ class CodexGuidanceProvider:
             for verse in verses[:3]
         ]
         schema = {
-            "mode": "comfort|clarity",
+            "mode": "comfort|clarity|traditional",
             "topic": "string",
             "verses": [
                 {
@@ -111,6 +121,7 @@ class CodexGuidanceProvider:
             "Use only the supplied verses. Do not invent verse references. "
             f"Return strict JSON matching this schema: {json.dumps(schema)}\n\n"
             f"{language_instruction(language)}\n"
+            f"{_mode_style_instruction(mode)}\n"
             f"Mode: {mode}\nTopic: {topic}\n"
             f"Available verses JSON: {json.dumps(verse_text, ensure_ascii=True)}"
         )
@@ -128,7 +139,7 @@ class CodexChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -176,7 +187,7 @@ class CodexChatProvider:
         self,
         *,
         message: str,
-        mode: Literal["comfort", "clarity"],
+        mode: GuidanceMode,
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
@@ -192,7 +203,7 @@ class CodexChatProvider:
             for verse in verses[:3]
         ]
         schema = {
-            "mode": "comfort|clarity",
+            "mode": "comfort|clarity|traditional",
             "reply": "string",
             "verses": [
                 {
@@ -213,6 +224,7 @@ class CodexChatProvider:
             "Keep tone practical, warm, concise. Return strict JSON only.\n"
             f"Schema: {json.dumps(schema)}\n"
             f"{language_instruction(language)}\n"
+            f"{_mode_style_instruction(mode)}\n"
             f"Mode: {mode}\n"
             f"Conversation history: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"

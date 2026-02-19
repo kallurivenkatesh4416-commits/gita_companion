@@ -1,14 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../api/api_client.dart';
+import '../errors/app_error_mapper.dart';
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../services/voice_service.dart';
 import '../state/app_state.dart';
-import '../theme/app_theme.dart';
-import '../utils/ui_text_utils.dart';
-import '../widgets/app_bottom_nav.dart';
 import '../widgets/spiritual_background.dart';
+import '../widgets/verification_badge_panel.dart';
+import 'collections_screen.dart';
+
+class AskScreenArguments {
+  final Verse? verseContext;
+
+  const AskScreenArguments({this.verseContext});
+}
 
 class AskScreen extends StatefulWidget {
   const AskScreen({super.key});
@@ -28,17 +37,23 @@ class _AskScreenState extends State<AskScreen> {
   bool _listening = false;
   int? _speakingMessageIndex;
   String? _error;
+  bool _routeArgsApplied = false;
+  Verse? _attachedVerse;
+  StreamSubscription<ChatStreamEvent>? _chatStreamSubscription;
+  bool _streamCanceledByUser = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restoreMessages();
+      _applyRouteArguments();
     });
   }
 
   @override
   void dispose() {
+    _chatStreamSubscription?.cancel();
     _voiceService.dispose();
     _messageController.dispose();
     _scrollController.dispose();
@@ -73,6 +88,38 @@ class _AskScreenState extends State<AskScreen> {
     _scrollToBottom();
   }
 
+  void _applyRouteArguments() {
+    if (_routeArgsApplied) {
+      return;
+    }
+    _routeArgsApplied = true;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is! AskScreenArguments || args.verseContext == null) {
+      return;
+    }
+
+    _attachedVerse = args.verseContext;
+    final strings = AppStrings(context.read<AppState>().languageCode);
+    final notice =
+        '${strings.t('verse_context_attached')}: BG ${_attachedVerse!.ref}';
+
+    if (_messages.every((item) => item.text != notice)) {
+      _messages.add(_ChatMessage(role: 'assistant', text: notice));
+    }
+
+    if (_messageController.text.trim().isEmpty) {
+      _messageController.text =
+          '${strings.t('ask_verse_prefill')} BG ${_attachedVerse!.ref}.';
+      _messageController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _messageController.text.length),
+      );
+    }
+
+    setState(() {});
+    _scrollToBottom();
+  }
+
   Future<void> _send() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _sending) {
@@ -80,6 +127,12 @@ class _AskScreenState extends State<AskScreen> {
     }
     final appState = context.read<AppState>();
     final strings = AppStrings(appState.languageCode);
+    if (appState.offlineMode) {
+      setState(() {
+        _error = strings.t('offline_chat_notice');
+      });
+      return;
+    }
 
     if (_listening) {
       await _voiceService.stopListening(
@@ -93,10 +146,14 @@ class _AskScreenState extends State<AskScreen> {
 
     final now = DateTime.now();
     _messageController.clear();
+    _streamCanceledByUser = false;
 
+    var assistantIndex = -1;
     setState(() {
       _error = null;
       _messages.add(_ChatMessage(role: 'user', text: text));
+      _messages.add(const _ChatMessage(role: 'assistant', text: ''));
+      assistantIndex = _messages.length - 1;
       _sending = true;
     });
     _scrollToBottom();
@@ -108,14 +165,59 @@ class _AskScreenState extends State<AskScreen> {
     );
 
     try {
-      final response = await appState.repository.chat(
-        message: text,
-        mode: appState.guidanceMode,
-        language: appState.languageCode,
-        history: appState.buildChatTurns(),
+      final history = appState.buildChatTurns(
+        maxTurns: _attachedVerse == null ? 12 : 11,
       );
+      if (_attachedVerse != null) {
+        history.insert(
+          0,
+          ChatTurn(
+            role: 'user',
+            content: _buildVerseContextTurn(_attachedVerse!),
+          ),
+        );
+      }
 
-      if (!mounted) return;
+      ChatResponse response;
+      try {
+        response = await _sendWithStreaming(
+          appState: appState,
+          message: text,
+          history: history,
+          assistantIndex: assistantIndex,
+        );
+      } catch (_) {
+        if (_streamCanceledByUser) {
+          return;
+        }
+
+        final hasPartial = assistantIndex >= 0 &&
+            assistantIndex < _messages.length &&
+            _messages[assistantIndex].text.trim().isNotEmpty;
+        if (hasPartial) {
+          rethrow;
+        }
+
+        response = await appState.repository.chat(
+          message: text,
+          mode: appState.guidanceMode,
+          language: appState.languageCode,
+          history: history,
+        );
+
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _messages[assistantIndex] = _ChatMessage(
+            role: 'assistant',
+            text: response.reply,
+            response: response,
+          );
+        });
+      }
+
+      if (!mounted || _streamCanceledByUser) return;
 
       final assistantEntry = ChatHistoryEntry(
         role: 'assistant',
@@ -124,12 +226,10 @@ class _AskScreenState extends State<AskScreen> {
       );
 
       setState(() {
-        _messages.add(
-          _ChatMessage(
-            role: 'assistant',
-            text: response.reply,
-            response: response,
-          ),
+        _messages[assistantIndex] = _ChatMessage(
+          role: 'assistant',
+          text: response.reply,
+          response: response,
         );
       });
       await appState.addChatEntries(<ChatHistoryEntry>[assistantEntry]);
@@ -139,48 +239,140 @@ class _AskScreenState extends State<AskScreen> {
           final ttsLocale =
               languageOptionFromCode(appState.languageCode).ttsLocale;
           await _speakMessage(_messages.length - 1, response.reply, ttsLocale);
-        } catch (error) {
+        } catch (error, stackTrace) {
           if (mounted) {
-            setState(() {
-              _error = mapFriendlyError(
+            setState(
+              () => _error = AppErrorMapper.toUserMessage(
                 error,
-                strings: strings,
-                context: 'chat',
-              );
-            });
+                strings,
+                stackTrace: stackTrace,
+                context: 'AskScreen.speakMessage',
+              ),
+            );
           }
         }
       }
-    } catch (error) {
-      if (!mounted) return;
+    } catch (error, stackTrace) {
+      if (!mounted || _streamCanceledByUser) return;
       setState(() {
-        _error = mapFriendlyError(
+        _error = AppErrorMapper.toUserMessage(
           error,
-          strings: strings,
-          context: 'chat',
+          strings,
+          stackTrace: stackTrace,
+          context: 'AskScreen.send',
         );
-        _messages.add(
-          const _ChatMessage(
+        if (assistantIndex >= 0 &&
+            assistantIndex < _messages.length &&
+            _messages[assistantIndex].text.trim().isEmpty) {
+          _messages[assistantIndex] = _ChatMessage(
             role: 'assistant',
-            text: 'I could not process that right now. Please try again.',
-          ),
-        );
+            text: strings.t('error_try_again_short'),
+          );
+        }
       });
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() => _sending = false);
+      }
       _scrollToBottom();
     }
   }
 
-  void _sendFollowUp(String text) {
-    if (_sending) {
+  Future<ChatResponse> _sendWithStreaming({
+    required AppState appState,
+    required String message,
+    required List<ChatTurn> history,
+    required int assistantIndex,
+  }) async {
+    final completer = Completer<ChatResponse>();
+
+    _chatStreamSubscription = appState.repository
+        .streamChat(
+          message: message,
+          mode: appState.guidanceMode,
+          language: appState.languageCode,
+          history: history,
+        )
+        .listen(
+      (event) {
+        if (!mounted) {
+          return;
+        }
+
+        if (event.token != null) {
+          final current = _messages[assistantIndex];
+          setState(() {
+            _messages[assistantIndex] = _ChatMessage(
+              role: 'assistant',
+              text: '${current.text}${event.token}',
+            );
+          });
+          _scrollToBottom();
+          return;
+        }
+
+        final response = event.response;
+        if (response != null) {
+          setState(() {
+            _messages[assistantIndex] = _ChatMessage(
+              role: 'assistant',
+              text: response.reply,
+              response: response,
+            );
+          });
+          if (!completer.isCompleted) {
+            completer.complete(response);
+          }
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      },
+      onDone: () {
+        if (!completer.isCompleted && !_streamCanceledByUser) {
+          completer.completeError(
+            const ApiException('Stream closed before completion'),
+          );
+        }
+      },
+      cancelOnError: true,
+    );
+
+    try {
+      return await completer.future;
+    } finally {
+      await _chatStreamSubscription?.cancel();
+      _chatStreamSubscription = null;
+    }
+  }
+
+  Future<void> _stopGenerating() async {
+    if (_chatStreamSubscription == null) {
       return;
     }
-    _messageController.text = text;
-    _messageController.selection = TextSelection.fromPosition(
-      TextPosition(offset: _messageController.text.length),
-    );
-    _send();
+
+    _streamCanceledByUser = true;
+    await _chatStreamSubscription?.cancel();
+    _chatStreamSubscription = null;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sending = false;
+    });
+  }
+
+  String _buildVerseContextTurn(Verse verse) {
+    final transliteration = verse.transliteration.trim();
+    final transliterationText =
+        transliteration.isEmpty ? '' : ' Transliteration: $transliteration.';
+
+    return 'Use Bhagavad Gita verse BG ${verse.ref} as attached context. '
+        'Sanskrit: ${verse.sanskrit}. '
+        'Translation: ${verse.translation}.'
+        '$transliterationText';
   }
 
   Future<void> _toggleListening() async {
@@ -281,15 +473,60 @@ class _AskScreenState extends State<AskScreen> {
     final appState = context.watch<AppState>();
     final strings = AppStrings(appState.languageCode);
     final ttsLocale = languageOptionFromCode(appState.languageCode).ttsLocale;
+    final chatAvailable = !appState.offlineMode;
+    final canStopStreaming = _chatStreamSubscription != null;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(strings.t('chat_title')),
       ),
       body: SpiritualBackground(
-        animate: false,
         child: Column(
           children: <Widget>[
+            if (_attachedVerse != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: colorScheme.primary.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Text(
+                    '${strings.t('verse_context')}: BG ${_attachedVerse!.ref}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurface,
+                        ),
+                  ),
+                ),
+              ),
+            if (appState.offlineMode)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                child: Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: colorScheme.secondaryContainer.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: colorScheme.secondary.withValues(alpha: 0.24),
+                    ),
+                  ),
+                  child: Text(
+                    strings.t('offline_chat_notice'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSecondaryContainer,
+                        ),
+                  ),
+                ),
+              ),
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
@@ -297,18 +534,34 @@ class _AskScreenState extends State<AskScreen> {
                 itemCount: _messages.length,
                 itemBuilder: (BuildContext context, int index) {
                   final message = _messages[index];
-                  final isLatestAssistant = message.role == 'assistant' &&
-                      index == _messages.length - 1 &&
-                      message.response != null;
+                  // Find the user question that preceded this assistant message.
+                  String? precedingQuestion;
+                  if (message.role == 'assistant' && message.response != null) {
+                    for (int i = index - 1; i >= 0; i--) {
+                      if (_messages[i].role == 'user') {
+                        precedingQuestion = _messages[i].text;
+                        break;
+                      }
+                    }
+                  }
                   return _MessageBubble(
                     message: message,
                     strings: strings,
                     speaking: _speakingMessageIndex == index,
-                    showFollowUps: isLatestAssistant,
-                    onFollowUpSelected: isLatestAssistant ? _sendFollowUp : null,
-                    onSpeakPressed: message.role == 'assistant'
+                    onSpeakPressed: message.role == 'assistant' &&
+                            message.text.trim().isNotEmpty
                         ? () => _speakMessage(index, message.text, ttsLocale)
                         : null,
+                    onSavePressed:
+                        (message.role == 'assistant' && message.response != null)
+                            ? () => showAddToCollectionSheet(
+                                  context: context,
+                                  item: BookmarkItem.fromAnswer(
+                                    answer: message.text,
+                                    question: precedingQuestion ?? '',
+                                  ),
+                                )
+                            : null,
                   );
                 },
               ),
@@ -347,10 +600,11 @@ class _AskScreenState extends State<AskScreen> {
                     Expanded(
                       child: TextField(
                         controller: _messageController,
+                        enabled: !_sending && chatAvailable,
                         minLines: 1,
                         maxLines: 4,
                         textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _send(),
+                        onSubmitted: chatAvailable ? (_) => _send() : null,
                         decoration: InputDecoration(
                           hintText: strings.t('ask_hint'),
                         ),
@@ -358,17 +612,15 @@ class _AskScreenState extends State<AskScreen> {
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
-                      onPressed: _sending ? null : _send,
+                      onPressed: _sending
+                          ? (canStopStreaming ? _stopGenerating : null)
+                          : (chatAvailable ? _send : null),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(52, 52),
                         padding: const EdgeInsets.all(0),
                       ),
                       child: _sending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
+                          ? const Icon(Icons.stop_rounded)
                           : const Icon(Icons.send_rounded),
                     ),
                   ],
@@ -378,10 +630,6 @@ class _AskScreenState extends State<AskScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: const SafeArea(
-        top: false,
-        child: AppBottomNav(currentIndex: 2),
-      ),
     );
   }
 }
@@ -390,17 +638,15 @@ class _MessageBubble extends StatelessWidget {
   final _ChatMessage message;
   final AppStrings strings;
   final bool speaking;
-  final bool showFollowUps;
-  final ValueChanged<String>? onFollowUpSelected;
   final VoidCallback? onSpeakPressed;
+  final VoidCallback? onSavePressed;
 
   const _MessageBubble({
     required this.message,
     required this.strings,
     required this.speaking,
-    required this.showFollowUps,
-    required this.onFollowUpSelected,
     required this.onSpeakPressed,
+    this.onSavePressed,
   });
 
   @override
@@ -418,141 +664,62 @@ class _MessageBubble extends StatelessWidget {
             crossAxisAlignment:
                 isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: <Widget>[
-              if (isUser)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.95),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                      bottomLeft: Radius.circular(18),
-                      bottomRight: Radius.circular(4),
-                    ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? colorScheme.primary.withValues(alpha: 0.95)
+                      : colorScheme.surface,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(18),
+                    topRight: const Radius.circular(18),
+                    bottomLeft: Radius.circular(isUser ? 18 : 4),
+                    bottomRight: Radius.circular(isUser ? 4 : 18),
                   ),
-                  child: Text(
-                    message.text,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: colorScheme.onPrimary,
-                        ),
-                  ),
-                )
-              else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Container(
-                      width: 30,
-                      height: 30,
-                      margin: const EdgeInsets.only(top: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF2E4CD),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFD99A52).withValues(alpha: 0.6),
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.spa_rounded,
-                        size: 18,
-                        color: Color(0xFF9A5C2D),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF8EC),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(18),
-                            topRight: Radius.circular(18),
-                            bottomLeft: Radius.circular(4),
-                            bottomRight: Radius.circular(18),
-                          ),
-                          border: Border.all(
-                            color: colorScheme.outline.withValues(alpha: 0.35),
-                          ),
-                        ),
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            border: Border(
-                              left: BorderSide(
-                                color: Color(0xFFD1863B),
-                                width: 3,
-                              ),
-                            ),
-                          ),
-                          padding: const EdgeInsets.only(left: 10),
-                          child: Text(
-                            message.text,
-                            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                  color: const Color(0xFF2D2419),
-                                ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  border: isUser
+                      ? null
+                      : Border.all(
+                          color: colorScheme.outline.withValues(alpha: 0.35)),
                 ),
-              if (!isUser)
+                child: Text(
+                  message.text,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: isUser
+                            ? colorScheme.onPrimary
+                            : colorScheme.onSurface,
+                      ),
+                ),
+              ),
+              if (!isUser && (onSpeakPressed != null || onSavePressed != null))
                 Padding(
-                  padding: const EdgeInsets.only(top: 4, left: 38),
-                  child: TextButton.icon(
-                    onPressed: onSpeakPressed,
-                    icon: Icon(speaking
-                        ? Icons.stop_rounded
-                        : Icons.volume_up_rounded),
-                    label: Text(speaking
-                        ? strings.t('stop_audio')
-                        : strings.t('speak')),
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (onSpeakPressed != null)
+                        TextButton.icon(
+                          onPressed: onSpeakPressed,
+                          icon: Icon(speaking
+                              ? Icons.stop_rounded
+                              : Icons.volume_up_rounded),
+                          label: Text(speaking
+                              ? strings.t('stop_audio')
+                              : strings.t('speak')),
+                        ),
+                      if (onSavePressed != null)
+                        TextButton.icon(
+                          onPressed: onSavePressed,
+                          icon: const Icon(Icons.bookmark_add_outlined),
+                          label: Text(strings.t('save_answer')),
+                        ),
+                    ],
                   ),
                 ),
               if (message.response != null) ...<Widget>[
                 const SizedBox(height: 8),
-                Padding(
-                  padding: EdgeInsets.only(left: isUser ? 0 : 38),
-                  child: _AssistantContextCard(
-                      response: message.response!, strings: strings),
-                ),
-              ],
-              if (showFollowUps && onFollowUpSelected != null) ...<Widget>[
-                const SizedBox(height: 8),
-                Padding(
-                  padding: EdgeInsets.only(left: isUser ? 0 : 38),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        strings.t('suggested_followups'),
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: <String>[
-                          strings.t('follow_up_tell_more'),
-                          strings.t('follow_up_related_verse'),
-                          strings.t('follow_up_practice_this'),
-                        ]
-                            .map(
-                              (prompt) => ActionChip(
-                                label: Text(prompt),
-                                onPressed: () => onFollowUpSelected!(prompt),
-                              ),
-                            )
-                            .toList(growable: false),
-                      ),
-                    ],
-                  ),
-                ),
+                _AssistantContextCard(
+                    response: message.response!, strings: strings),
               ],
             ],
           ),
@@ -573,61 +740,46 @@ class _AssistantContextCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-        title: Text(
-          strings.t('supporting_verses'),
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        subtitle: Text(
-          '${strings.t('action')}: ${response.actionStep}',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-        ),
-        children: <Widget>[
-          ...response.verses.map(
-            (verse) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    'BG ${verse.ref}',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: colorScheme.primary,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    verse.sanskrit,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.sanskritStyle(
-                      context,
-                      fontSize: 18,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    verse.translation,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            VerificationBadgePanel(
+              strings: strings,
+              verificationLevel: response.verificationLevel,
+              verificationDetails: response.verificationDetails,
+              provenance: response.provenance,
+            ),
+            const SizedBox(height: 10),
+            Text(strings.t('supporting_verses'),
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 6),
+            ...response.verses.map(
+              (verse) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '${verse.ref}: ${verse.translation}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             ),
-          ),
-          Text(
-            '${strings.t('reflect')}: ${response.reflectionPrompt}',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              '${strings.t('action')}: ${response.actionStep}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${strings.t('reflect')}: ${response.reflectionPrompt}',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }

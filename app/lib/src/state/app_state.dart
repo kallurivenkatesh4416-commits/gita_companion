@@ -1,20 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/journey_catalog.dart';
+import '../errors/app_error_mapper.dart';
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../repositories/gita_repository.dart';
+import '../services/verse_notification_service.dart';
 
 class AppState extends ChangeNotifier {
-  static const _completeCorpusMin = 700;
-  static const _completeCorpusMax = 702;
-  static const _partialCorpusThreshold = 650;
-  static const _downgradeProtectionLocalThreshold = 650;
   static const _prefOnboardingComplete = 'onboarding_complete';
   static const _prefAnonymousMode = 'anonymous_mode';
   static const _prefEmail = 'email';
@@ -26,12 +23,33 @@ class AppState extends ChangeNotifier {
   static const _prefChatHistory = 'chat_history';
   static const _prefMorningGreeting = 'morning_greeting';
   static const _prefMorningGreetingLocalDate = 'morning_greeting_local_date';
-  static const _prefRitualLastCompletedDate = 'ritual_last_completed_local_date';
+  static const _prefRitualLastCompletedDate =
+      'ritual_last_completed_local_date';
   static const _prefRitualReflections = 'ritual_reflections';
-  static const _prefRitualStreakDays = 'ritual_streak_days';
-  static const _prefRitualStreakLastDate = 'ritual_streak_last_date';
+  static const _prefJournalEntries = 'journal_entries';
+  static const _prefBookmarkCollections = 'bookmark_collections';
+  static const _prefJourneyProgress = 'journey_progress';
+  static const _prefVerseNotificationsEnabled = 'verse_notifications_enabled';
+  static const _prefVerseNotificationsPaused = 'verse_notifications_paused';
+  static const _prefVerseNotificationWindow = 'verse_notification_window';
+  static const _prefVerseNotificationCustomHour =
+      'verse_notification_custom_hour';
+  static const _prefVerseNotificationCustomMinute =
+      'verse_notification_custom_minute';
+
+  static const notificationWindowMorning = 'morning';
+  static const notificationWindowEvening = 'evening';
+  static const notificationWindowCustom = 'custom';
+  static const _defaultNotificationHour = 7;
+  static const _defaultNotificationMinute = 30;
+  static const _morningWindowHour = 7;
+  static const _morningWindowMinute = 30;
+  static const _eveningWindowHour = 19;
+  static const _eveningWindowMinute = 0;
 
   final GitaRepository repository;
+  final VerseNotificationService _verseNotificationService =
+      VerseNotificationService();
 
   bool initialized = false;
   bool onboardingComplete = false;
@@ -42,12 +60,19 @@ class AppState extends ChangeNotifier {
   String languageCode = 'en';
   bool voiceInputEnabled = true;
   bool voiceOutputEnabled = false;
+  bool verseNotificationsEnabled = false;
+  bool verseNotificationsPaused = false;
+  String verseNotificationWindow = notificationWindowMorning;
+  int verseNotificationCustomHour = _defaultNotificationHour;
+  int verseNotificationCustomMinute = _defaultNotificationMinute;
+  bool offlineMode = false;
 
   bool loading = false;
   String? dailyVerseError;
   String? moodOptionsError;
   String? favoritesError;
   String? journeysError;
+  String? chaptersError;
   String? morningGreetingError;
   Verse? dailyVerse;
   MorningGreeting? morningGreeting;
@@ -55,24 +80,26 @@ class AppState extends ChangeNotifier {
   List<String> moodOptions = const <String>[];
   List<FavoriteItem> favorites = const <FavoriteItem>[];
   List<Journey> journeys = const <Journey>[];
-  bool favoritesLoading = false;
-  bool journeysLoading = false;
-  bool versesLoading = false;
-  String? versesError;
-  bool versesSyncPartialWarning = false;
-  String? versesSyncWarningMessage;
   List<ChapterSummary> chapters = const <ChapterSummary>[];
-  final Map<int, List<Verse>> chapterVerseCache = <int, List<Verse>>{};
-  int totalVersesAvailable = 0;
-  int remoteVerseTotal = 0;
-  bool _verseStatsLogged = false;
+  final Map<int, List<Verse>> chapterVerses = <int, List<Verse>>{};
+  final Map<int, String> chapterVersesErrors = <int, String>{};
+  final Set<int> _chapterVersesLoading = <int>{};
   List<ChatHistoryEntry> chatHistory = const <ChatHistoryEntry>[];
   String? ritualLastCompletedDate;
   List<String> ritualReflections = const <String>[];
-  int ritualStreakDays = 0;
-  String? ritualStreakLastDate;
+  List<JournalEntry> journalEntries = const <JournalEntry>[];
+  List<BookmarkCollection> bookmarkCollections = const <BookmarkCollection>[];
+  final Map<String, Set<int>> _journeyProgressById = <String, Set<int>>{};
+  bool chaptersLoading = false;
 
   bool get ritualCompletedToday => ritualLastCompletedDate == _todayKey();
+  bool isChapterLoading(int chapter) => _chapterVersesLoading.contains(chapter);
+  Set<int> journeyCompletedDays(String journeyId) =>
+      _journeyProgressById[journeyId] ?? const <int>{};
+  int journeyCompletedCount(String journeyId) =>
+      _journeyProgressById[journeyId]?.length ?? 0;
+  bool isJourneyDayCompleted(String journeyId, int day) =>
+      _journeyProgressById[journeyId]?.contains(day) ?? false;
 
   AppState({required this.repository});
 
@@ -89,25 +116,47 @@ class AppState extends ChangeNotifier {
     anonymousMode = prefs.getBool(_prefAnonymousMode) ?? true;
     privacyAnonymous = prefs.getBool(_prefPrivacyAnonymous) ?? anonymousMode;
     email = prefs.getString(_prefEmail);
-    guidanceMode = prefs.getString(_prefGuidanceMode) ?? 'comfort';
+    guidanceMode =
+        guidanceModeFromCode(prefs.getString(_prefGuidanceMode) ?? 'comfort');
     final languageCandidate = prefs.getString(_prefLanguageCode) ?? 'en';
     languageCode = languageOptionFromCode(languageCandidate).code;
     voiceInputEnabled = prefs.getBool(_prefVoiceInputEnabled) ?? true;
     voiceOutputEnabled = prefs.getBool(_prefVoiceOutputEnabled) ?? false;
+    verseNotificationsEnabled =
+        prefs.getBool(_prefVerseNotificationsEnabled) ?? false;
+    verseNotificationsPaused = prefs.getBool(_prefVerseNotificationsPaused) ?? false;
+    verseNotificationWindow = _normalizeNotificationWindow(
+      prefs.getString(_prefVerseNotificationWindow) ?? notificationWindowMorning,
+    );
+    verseNotificationCustomHour = _normalizeHour(
+      prefs.getInt(_prefVerseNotificationCustomHour) ?? _defaultNotificationHour,
+    );
+    verseNotificationCustomMinute = _normalizeMinute(
+      prefs.getInt(_prefVerseNotificationCustomMinute) ??
+          _defaultNotificationMinute,
+    );
     chatHistory = _decodeChatHistory(prefs.getString(_prefChatHistory));
     morningGreeting =
         _decodeMorningGreeting(prefs.getString(_prefMorningGreeting));
     ritualLastCompletedDate = prefs.getString(_prefRitualLastCompletedDate);
-    ritualReflections = _decodeStringList(prefs.getString(_prefRitualReflections));
-    ritualStreakDays = prefs.getInt(_prefRitualStreakDays) ?? 0;
-    ritualStreakLastDate = prefs.getString(_prefRitualStreakLastDate);
+    ritualReflections =
+        _decodeStringList(prefs.getString(_prefRitualReflections));
+    journalEntries =
+        _decodeJournalEntries(prefs.getString(_prefJournalEntries));
+    bookmarkCollections =
+        _decodeBookmarkCollections(prefs.getString(_prefBookmarkCollections));
+    _journeyProgressById
+      ..clear()
+      ..addAll(_decodeJourneyProgress(prefs.getString(_prefJourneyProgress)));
+    await _migrateLegacyRitualReflectionsIfNeeded();
+    await _verseNotificationService.initialize();
 
     await Future.wait(<Future<void>>[
       refreshDailyVerse(),
       refreshMoodOptions(),
       refreshFavorites(),
       refreshJourneys(),
-      refreshVerseChapters(),
+      refreshChapters(),
     ]);
 
     // Retry once after initial warm-up to reduce startup race failures.
@@ -119,6 +168,7 @@ class AppState extends ChangeNotifier {
     loading = false;
     initialized = true;
     notifyListeners();
+    await _syncVerseNotifications();
     unawaited(_autoGenerateMorningGreetingIfNeeded());
   }
 
@@ -126,9 +176,16 @@ class AppState extends ChangeNotifier {
     try {
       dailyVerse = await repository.getDailyVerse();
       dailyVerseError = null;
-    } catch (error) {
-      dailyVerseError = error.toString();
+      offlineMode = repository.lastRequestUsedOfflineData;
+    } catch (error, stackTrace) {
+      dailyVerseError = _friendlyError(
+        error,
+        stackTrace,
+        context: 'refreshDailyVerse',
+      );
+      _markOfflineFromError(error);
     }
+    await _syncVerseNotifications();
     notifyListeners();
   }
 
@@ -136,253 +193,167 @@ class AppState extends ChangeNotifier {
     try {
       moodOptions = await repository.getMoodOptions();
       moodOptionsError = null;
-    } catch (error) {
+      offlineMode = false;
+    } catch (error, stackTrace) {
       moodOptions = const <String>[];
-      moodOptionsError = error.toString();
+      moodOptionsError = _friendlyError(
+        error,
+        stackTrace,
+        context: 'refreshMoodOptions',
+      );
+      _markOfflineFromError(error);
     }
     notifyListeners();
   }
 
   Future<void> refreshFavorites() async {
-    favoritesLoading = true;
-    notifyListeners();
     try {
       favorites = await repository.getFavorites();
       favoritesError = null;
-    } catch (error) {
+      offlineMode = false;
+    } catch (error, stackTrace) {
       favorites = const <FavoriteItem>[];
-      favoritesError = error.toString();
-    } finally {
-      favoritesLoading = false;
-      notifyListeners();
+      favoritesError = _friendlyError(
+        error,
+        stackTrace,
+        context: 'refreshFavorites',
+      );
+      _markOfflineFromError(error);
     }
+    notifyListeners();
   }
 
   Future<void> refreshJourneys() async {
-    journeysLoading = true;
-    notifyListeners();
-    try {
-      journeys = await repository.getJourneys();
-      journeysError = null;
-    } catch (error) {
-      journeys = const <Journey>[];
-      journeysError = error.toString();
-    } finally {
-      journeysLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> refreshVerseChapters() async {
-    versesLoading = true;
-    notifyListeners();
-    try {
-      chapters = await repository.getChapters();
-      totalVersesAvailable = _cachedVerseCount();
-      versesError = null;
-    } catch (error) {
-      chapters = List<ChapterSummary>.generate(
-        18,
-        (index) => ChapterSummary(chapter: index + 1, verseCount: 0),
-        growable: false,
-      );
-      versesError = error.toString();
-    } finally {
-      versesLoading = false;
-      notifyListeners();
-    }
-  }
-
-  List<Verse> chapterVersesFor(int chapter) {
-    return chapterVerseCache[chapter] ?? const <Verse>[];
-  }
-
-  Future<void> refreshChapterVerses(
-    int chapter, {
-    bool force = false,
-    int pageSize = 200,
-  }) async {
-    if (!force && chapterVerseCache.containsKey(chapter)) {
-      return;
-    }
-
-    versesLoading = true;
-    notifyListeners();
-
-    final loadedByKey = <String, Verse>{};
-    var offset = 0;
-    var hasMore = true;
-    var remoteTotal = 0;
-    try {
-      while (hasMore) {
-        final page = await repository.getChapterVerses(
-          chapter: chapter,
-          offset: offset,
-          limit: pageSize,
-        );
-
-        final itemsReturned = page.items.length;
-        debugPrint(
-          'chapter_page chapter=$chapter offset=$offset '
-          'received=$itemsReturned has_more=${page.hasMore}',
-        );
-        remoteTotal = page.total;
-        if (itemsReturned == 0) {
-          break;
-        }
-        for (final verse in page.items) {
-          loadedByKey[_verseDedupeKey(verse)] = verse;
-        }
-        offset += itemsReturned;
-        hasMore = page.hasMore;
-      }
-
-      final loaded = loadedByKey.values.toList(growable: false)
-        ..sort(_compareVerseOrder);
-      final existing = chapterVerseCache[chapter];
-      if (loaded.isNotEmpty && (existing == null || loaded.length >= existing.length)) {
-        chapterVerseCache[chapter] = List<Verse>.unmodifiable(loaded);
-      } else if (remoteTotal > 0 && existing != null && remoteTotal >= existing.length) {
-        chapterVerseCache[chapter] = List<Verse>.unmodifiable(loaded);
-      } else if (existing != null && loaded.length < existing.length) {
-        debugPrint(
-          'Skipping partial chapter overwrite for chapter $chapter '
-          '(loaded=${loaded.length}, existing=${existing.length})',
-        );
-      }
-      totalVersesAvailable = _cachedVerseCount();
-      versesError = null;
-    } catch (error) {
-      versesError = error.toString();
-    } finally {
-      versesLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> syncAllVerses({
-    bool force = false,
-    bool allowDowngradeOverwrite = false,
-    int pageSize = 200,
-  }) async {
-    if (!force &&
-        chapterVerseCache.isNotEmpty &&
-        _isCompleteCorpusTotal(totalVersesAvailable)) {
-      return;
-    }
-
-    versesLoading = true;
-    notifyListeners();
-
-    final loadedByKey = <String, Verse>{};
-    var offset = 0;
-    var remoteTotal = 0;
-    var actionTaken = 'no_change';
-    final localTotal = _cachedVerseCount();
-    try {
-      final stats = await repository.getVerseStats();
-      remoteTotal = stats.totalVerses;
-      remoteVerseTotal = remoteTotal;
-      if (!_verseStatsLogged) {
-        debugPrint('verse_totals local=$localTotal remote=$remoteTotal');
-        _verseStatsLogged = true;
-      }
-
-      while (true) {
-        final page = await repository.getVersesPage(
-          offset: offset,
-          limit: pageSize,
-        );
-        final itemsReturned = page.length;
-        debugPrint('verse_page offset=$offset received=$itemsReturned');
-        if (itemsReturned == 0) {
-          break;
-        }
-        for (final verse in page) {
-          loadedByKey[_verseDedupeKey(verse)] = verse;
-        }
-        offset += itemsReturned;
-        if (itemsReturned < pageSize || (remoteTotal > 0 && offset >= remoteTotal)) {
-          break;
-        }
-      }
-
-      final loaded = loadedByKey.values.toList(growable: false)
-        ..sort(_compareVerseOrder);
-      final loadedTotal = loaded.length;
-      final effectiveRemoteTotal = remoteTotal > 0 ? remoteTotal : loadedTotal;
-      final remoteIsPartial =
-          effectiveRemoteTotal > 0 && effectiveRemoteTotal < _partialCorpusThreshold;
-      final shouldBlockOverwrite = !allowDowngradeOverwrite &&
-          localTotal >= _downgradeProtectionLocalThreshold &&
-          effectiveRemoteTotal < (localTotal * 0.9).floor();
-
-      versesSyncPartialWarning = false;
-      versesSyncWarningMessage = null;
-
-      if (localTotal == 0) {
-        if (loadedTotal > 0) {
-          chapterVerseCache
-            ..clear()
-            ..addAll(_groupVersesByChapter(loaded));
-          totalVersesAvailable = loadedTotal;
-          actionTaken = 'initial_load';
-        } else {
-          actionTaken = 'initial_empty';
-        }
-      } else if (shouldBlockOverwrite) {
-        totalVersesAvailable = localTotal;
-        actionTaken = 'blocked_partial_remote';
-        versesSyncPartialWarning = true;
-        versesSyncWarningMessage = AppStrings(languageCode)
-            .t('verses_sync_incomplete_server_keep_offline');
-      } else if (allowDowngradeOverwrite && loadedTotal > 0) {
-        chapterVerseCache
-          ..clear()
-          ..addAll(_groupVersesByChapter(loaded));
-        totalVersesAvailable = loadedTotal;
-        actionTaken = 'force_resync_overwrite';
-      } else if (effectiveRemoteTotal >= localTotal && loadedTotal > 0) {
-        chapterVerseCache
-          ..clear()
-          ..addAll(_groupVersesByChapter(loaded));
-        totalVersesAvailable = loadedTotal;
-        actionTaken = 'refreshed';
-      } else {
-        totalVersesAvailable = localTotal;
-        actionTaken = 'kept_local';
-      }
-
-      if (!versesSyncPartialWarning && remoteIsPartial) {
-        versesSyncPartialWarning = true;
-        versesSyncWarningMessage =
-            AppStrings(languageCode).t('verses_sync_partial_server_warning');
-      }
-      versesError = null;
-      debugPrint(
-        'verse_sync_guard localTotal=$localTotal '
-        'remoteTotal=$effectiveRemoteTotal action=$actionTaken '
-        'allowDowngradeOverwrite=$allowDowngradeOverwrite',
-      );
-    } catch (error) {
-      versesError = error.toString();
-    } finally {
-      versesLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<Verse?> randomVerse() async {
-    if (chapterVerseCache.isEmpty) {
-      await syncAllVerses();
-    }
-    final all = chapterVerseCache.values
-        .expand((verses) => verses)
+    journeys = builtInJourneys
+        .map(_withComputedJourneyStatus)
         .toList(growable: false);
-    if (all.isNotEmpty) {
-      return all[Random().nextInt(all.length)];
+    journeysError = null;
+    notifyListeners();
+  }
+
+  double journeyCompletionRatio(String journeyId, int totalDays) {
+    if (totalDays <= 0) {
+      return 0;
     }
-    return dailyVerse;
+    final completed = journeyCompletedCount(journeyId);
+    return (completed / totalDays).clamp(0, 1).toDouble();
+  }
+
+  int journeyNextDay(String journeyId, int totalDays) {
+    final completedDays = journeyCompletedDays(journeyId);
+    for (var day = 1; day <= totalDays; day++) {
+      if (!completedDays.contains(day)) {
+        return day;
+      }
+    }
+    return totalDays;
+  }
+
+  Future<void> setJourneyDayCompleted({
+    required String journeyId,
+    required int day,
+    required bool completed,
+  }) async {
+    if (day < 1) {
+      return;
+    }
+
+    final updated = <int>{...journeyCompletedDays(journeyId)};
+    if (completed) {
+      updated.add(day);
+    } else {
+      updated.remove(day);
+    }
+
+    if (updated.isEmpty) {
+      _journeyProgressById.remove(journeyId);
+    } else {
+      _journeyProgressById[journeyId] = updated;
+    }
+
+    await _persistJourneyProgress();
+    journeys = journeys
+        .map((journey) => journey.id == journeyId
+            ? _withComputedJourneyStatus(journey)
+            : journey)
+        .toList(growable: false);
+    notifyListeners();
+  }
+
+  Journey _withComputedJourneyStatus(Journey journey) {
+    final completedDays = journeyCompletedCount(journey.id);
+    final status = completedDays <= 0
+        ? 'not_started'
+        : (completedDays >= journey.days ? 'completed' : 'in_progress');
+    return journey.copyWith(status: status);
+  }
+
+  Future<void> refreshChapters({bool forceRefresh = false}) async {
+    chaptersLoading = true;
+    notifyListeners();
+
+    try {
+      chapters = await repository.getChapters(forceRefresh: forceRefresh);
+      chaptersError = null;
+      if (repository.lastRequestUsedOfflineData) {
+        offlineMode = true;
+      }
+    } catch (error, stackTrace) {
+      if (chapters.isEmpty) {
+        chaptersError = _friendlyError(
+          error,
+          stackTrace,
+          context: 'refreshChapters',
+        );
+      }
+      _markOfflineFromError(error);
+    } finally {
+      chaptersLoading = false;
+      notifyListeners();
+    }
+  }
+
+  List<Verse> versesForChapter(int chapter) {
+    return chapterVerses[chapter] ?? const <Verse>[];
+  }
+
+  String? chapterError(int chapter) => chapterVersesErrors[chapter];
+
+  Future<void> loadChapterVerses(
+    int chapter, {
+    bool forceRefresh = false,
+  }) async {
+    if (_chapterVersesLoading.contains(chapter)) {
+      return;
+    }
+
+    if (!forceRefresh && chapterVerses.containsKey(chapter)) {
+      return;
+    }
+
+    _chapterVersesLoading.add(chapter);
+    chapterVersesErrors.remove(chapter);
+    notifyListeners();
+
+    try {
+      chapterVerses[chapter] = await repository.getVersesByChapter(
+        chapter,
+        forceRefresh: forceRefresh,
+      );
+      if (repository.lastRequestUsedOfflineData) {
+        offlineMode = true;
+      }
+    } catch (error, stackTrace) {
+      chapterVersesErrors[chapter] = _friendlyError(
+        error,
+        stackTrace,
+        context: 'loadChapterVerses:$chapter',
+      );
+      _markOfflineFromError(error);
+    } finally {
+      _chapterVersesLoading.remove(chapter);
+      notifyListeners();
+    }
   }
 
   Future<void> generateMorningGreeting({
@@ -406,12 +377,18 @@ class AppState extends ChangeNotifier {
         language: languageCode,
       );
       await _persistMorningGreeting(morningGreeting!);
+      offlineMode = false;
       if (!suppressErrors) {
         morningGreetingError = null;
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _markOfflineFromError(error);
       if (!suppressErrors) {
-        morningGreetingError = error.toString();
+        morningGreetingError = _friendlyError(
+          error,
+          stackTrace,
+          context: 'generateMorningGreeting',
+        );
       }
     } finally {
       morningGreetingLoading = false;
@@ -451,11 +428,90 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> setOnboardingPreferences({
+    required String mode,
+    required String language,
+    required bool notificationsEnabled,
+    required String notificationWindow,
+    int? notificationCustomHour,
+    int? notificationCustomMinute,
+  }) async {
+    guidanceMode = guidanceModeFromCode(mode);
+    languageCode = languageOptionFromCode(language).code;
+    verseNotificationWindow = _normalizeNotificationWindow(notificationWindow);
+    verseNotificationCustomHour = _normalizeHour(
+      notificationCustomHour ?? verseNotificationCustomHour,
+    );
+    verseNotificationCustomMinute = _normalizeMinute(
+      notificationCustomMinute ?? verseNotificationCustomMinute,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefGuidanceMode, guidanceMode);
+    await prefs.setString(_prefLanguageCode, languageCode);
+    await prefs.setString(_prefVerseNotificationWindow, verseNotificationWindow);
+    await prefs.setInt(
+      _prefVerseNotificationCustomHour,
+      verseNotificationCustomHour,
+    );
+    await prefs.setInt(
+      _prefVerseNotificationCustomMinute,
+      verseNotificationCustomMinute,
+    );
+    final enabled = await _setVerseNotificationsEnabled(
+      notificationsEnabled,
+      prefs: prefs,
+    );
+    notifyListeners();
+    return enabled;
+  }
+
+  Future<bool> setVerseNotificationsEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = await _setVerseNotificationsEnabled(value, prefs: prefs);
+    notifyListeners();
+    return enabled;
+  }
+
+  Future<void> setVerseNotificationsPaused(bool value) async {
+    verseNotificationsPaused = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefVerseNotificationsPaused, value);
+    await _syncVerseNotifications();
+    notifyListeners();
+  }
+
+  Future<void> setVerseNotificationWindow(String window) async {
+    verseNotificationWindow = _normalizeNotificationWindow(window);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefVerseNotificationWindow, verseNotificationWindow);
+    await _syncVerseNotifications();
+    notifyListeners();
+  }
+
+  Future<void> setVerseNotificationCustomTime({
+    required int hour,
+    required int minute,
+  }) async {
+    verseNotificationCustomHour = _normalizeHour(hour);
+    verseNotificationCustomMinute = _normalizeMinute(minute);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      _prefVerseNotificationCustomHour,
+      verseNotificationCustomHour,
+    );
+    await prefs.setInt(
+      _prefVerseNotificationCustomMinute,
+      verseNotificationCustomMinute,
+    );
+    await _syncVerseNotifications();
+    notifyListeners();
+  }
+
   Future<void> setGuidanceMode(String mode) async {
-    guidanceMode = mode;
+    guidanceMode = guidanceModeFromCode(mode);
     morningGreeting = null;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefGuidanceMode, mode);
+    await prefs.setString(_prefGuidanceMode, guidanceMode);
     await prefs.remove(_prefMorningGreeting);
     await prefs.remove(_prefMorningGreetingLocalDate);
     await generateMorningGreeting(force: true, suppressErrors: true);
@@ -470,6 +526,7 @@ class AppState extends ChangeNotifier {
     await prefs.remove(_prefMorningGreeting);
     await prefs.remove(_prefMorningGreetingLocalDate);
     await generateMorningGreeting(force: true, suppressErrors: true);
+    await _syncVerseNotifications();
     notifyListeners();
   }
 
@@ -499,7 +556,6 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> toggleFavorite(Verse verse) async {
-    HapticFeedback.lightImpact();
     if (isFavorite(verse.id)) {
       await repository.removeFavorite(verse.id);
     } else {
@@ -538,32 +594,159 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> completeRitual({String? reflection}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final today = _todayKey();
-    final alreadyCompletedToday = ritualLastCompletedDate == today;
-    ritualLastCompletedDate = today;
-    await prefs.setString(_prefRitualLastCompletedDate, ritualLastCompletedDate!);
-
-    if (!alreadyCompletedToday) {
-      if (ritualStreakLastDate != null && _isYesterday(ritualStreakLastDate!, today)) {
-        ritualStreakDays += 1;
-      } else {
-        ritualStreakDays = 1;
-      }
-      ritualStreakLastDate = today;
-      await prefs.setInt(_prefRitualStreakDays, ritualStreakDays);
-      await prefs.setString(_prefRitualStreakLastDate, ritualStreakLastDate!);
+  Future<void> addJournalEntry({
+    required String text,
+    String? moodTag,
+    int? verseId,
+    String? verseRef,
+  }) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return;
     }
+
+    final entry = JournalEntry(
+      id: 'j_${DateTime.now().microsecondsSinceEpoch}',
+      createdAt: DateTime.now(),
+      moodTag: moodTag?.trim().isEmpty ?? true ? null : moodTag?.trim(),
+      verseId: verseId,
+      verseRef: verseRef?.trim().isEmpty ?? true ? null : verseRef?.trim(),
+      text: trimmed,
+    );
+
+    journalEntries = <JournalEntry>[entry, ...journalEntries].take(500).toList(
+          growable: false,
+        );
+    await _persistJournalEntries();
+    notifyListeners();
+  }
+
+  Future<void> completeRitual({
+    String? reflection,
+    String? moodTag,
+    int? linkedVerseId,
+    String? linkedVerseRef,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    ritualLastCompletedDate = _todayKey();
+    await prefs.setString(
+        _prefRitualLastCompletedDate, ritualLastCompletedDate!);
 
     final text = reflection?.trim();
     if (text != null && text.isNotEmpty) {
       final updated = <String>[text, ...ritualReflections];
       ritualReflections = updated.take(30).toList(growable: false);
-      await prefs.setString(_prefRitualReflections, jsonEncode(ritualReflections));
+      await prefs.setString(
+          _prefRitualReflections, jsonEncode(ritualReflections));
+      await addJournalEntry(
+        text: text,
+        moodTag: moodTag,
+        verseId: linkedVerseId,
+        verseRef: linkedVerseRef,
+      );
     }
 
     notifyListeners();
+  }
+
+  // ── Bookmark Collections CRUD ──────────────────────────────────────
+
+  Future<void> createCollection(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+
+    final collection = BookmarkCollection(
+      id: 'col_${DateTime.now().microsecondsSinceEpoch}',
+      name: trimmed,
+      createdAt: DateTime.now(),
+      items: const <BookmarkItem>[],
+    );
+    bookmarkCollections = <BookmarkCollection>[...bookmarkCollections, collection];
+    await _persistBookmarkCollections();
+    notifyListeners();
+  }
+
+  Future<void> renameCollection(String collectionId, String newName) async {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return;
+
+    bookmarkCollections = bookmarkCollections.map((c) {
+      if (c.id == collectionId) return c.copyWith(name: trimmed);
+      return c;
+    }).toList(growable: false);
+    await _persistBookmarkCollections();
+    notifyListeners();
+  }
+
+  Future<void> deleteCollection(String collectionId) async {
+    bookmarkCollections = bookmarkCollections
+        .where((c) => c.id != collectionId)
+        .toList(growable: false);
+    await _persistBookmarkCollections();
+    notifyListeners();
+  }
+
+  Future<void> addItemToCollection(
+      String collectionId, BookmarkItem item) async {
+    bookmarkCollections = bookmarkCollections.map((c) {
+      if (c.id != collectionId) return c;
+      // Prevent duplicate verse bookmarks in same collection.
+      if (item.type == 'verse' &&
+          c.items.any((existing) =>
+              existing.type == 'verse' && existing.verseId == item.verseId)) {
+        return c;
+      }
+      return c.copyWith(items: <BookmarkItem>[...c.items, item]);
+    }).toList(growable: false);
+    await _persistBookmarkCollections();
+    notifyListeners();
+  }
+
+  Future<void> removeItemFromCollection(
+      String collectionId, String itemId) async {
+    bookmarkCollections = bookmarkCollections.map((c) {
+      if (c.id != collectionId) return c;
+      return c.copyWith(
+        items: c.items.where((i) => i.id != itemId).toList(growable: false),
+      );
+    }).toList(growable: false);
+    await _persistBookmarkCollections();
+    notifyListeners();
+  }
+
+  /// Returns collection names that already contain this verse.
+  List<String> collectionsContainingVerse(int verseId) {
+    return bookmarkCollections
+        .where((c) => c.items.any(
+            (item) => item.type == 'verse' && item.verseId == verseId))
+        .map((c) => c.name)
+        .toList(growable: false);
+  }
+
+  Future<void> _persistBookmarkCollections() async {
+    final prefs = await SharedPreferences.getInstance();
+    final payload = bookmarkCollections
+        .map((c) => c.toJson())
+        .toList(growable: false);
+    await prefs.setString(_prefBookmarkCollections, jsonEncode(payload));
+  }
+
+  List<BookmarkCollection> _decodeBookmarkCollections(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return const <BookmarkCollection>[];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List<dynamic>) {
+        return const <BookmarkCollection>[];
+      }
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map((item) => BookmarkCollection.fromJson(item))
+          .toList(growable: false);
+    } catch (_) {
+      return const <BookmarkCollection>[];
+    }
   }
 
   Future<void> deleteLocalData() async {
@@ -581,8 +764,14 @@ class AppState extends ChangeNotifier {
     await prefs.remove(_prefMorningGreetingLocalDate);
     await prefs.remove(_prefRitualLastCompletedDate);
     await prefs.remove(_prefRitualReflections);
-    await prefs.remove(_prefRitualStreakDays);
-    await prefs.remove(_prefRitualStreakLastDate);
+    await prefs.remove(_prefJournalEntries);
+    await prefs.remove(_prefBookmarkCollections);
+    await prefs.remove(_prefJourneyProgress);
+    await prefs.remove(_prefVerseNotificationsEnabled);
+    await prefs.remove(_prefVerseNotificationsPaused);
+    await prefs.remove(_prefVerseNotificationWindow);
+    await prefs.remove(_prefVerseNotificationCustomHour);
+    await prefs.remove(_prefVerseNotificationCustomMinute);
 
     onboardingComplete = false;
     anonymousMode = true;
@@ -592,27 +781,32 @@ class AppState extends ChangeNotifier {
     languageCode = 'en';
     voiceInputEnabled = true;
     voiceOutputEnabled = false;
+    verseNotificationsEnabled = false;
+    verseNotificationsPaused = false;
+    verseNotificationWindow = notificationWindowMorning;
+    verseNotificationCustomHour = _defaultNotificationHour;
+    verseNotificationCustomMinute = _defaultNotificationMinute;
+    offlineMode = false;
     chatHistory = const <ChatHistoryEntry>[];
     morningGreeting = null;
     morningGreetingLoading = false;
     ritualLastCompletedDate = null;
     ritualReflections = const <String>[];
-    ritualStreakDays = 0;
-    ritualStreakLastDate = null;
-    chapters = const <ChapterSummary>[];
-    chapterVerseCache.clear();
-    totalVersesAvailable = 0;
-    remoteVerseTotal = 0;
-    versesSyncPartialWarning = false;
-    versesSyncWarningMessage = null;
-    _verseStatsLogged = false;
-    versesLoading = false;
-    versesError = null;
+    journalEntries = const <JournalEntry>[];
+    bookmarkCollections = const <BookmarkCollection>[];
+    _journeyProgressById.clear();
     dailyVerseError = null;
     moodOptionsError = null;
     favoritesError = null;
     journeysError = null;
+    chaptersError = null;
+    chapters = const <ChapterSummary>[];
+    chapterVerses.clear();
+    chapterVersesErrors.clear();
+    _chapterVersesLoading.clear();
+    chaptersLoading = false;
     morningGreetingError = null;
+    await _verseNotificationService.cancelDaily();
     notifyListeners();
   }
 
@@ -647,6 +841,24 @@ class AppState extends ChangeNotifier {
     final payload =
         chatHistory.map((entry) => entry.toJson()).toList(growable: false);
     await prefs.setString(_prefChatHistory, jsonEncode(payload));
+  }
+
+  Future<void> _persistJournalEntries() async {
+    final prefs = await SharedPreferences.getInstance();
+    final payload =
+        journalEntries.map((entry) => entry.toJson()).toList(growable: false);
+    await prefs.setString(_prefJournalEntries, jsonEncode(payload));
+  }
+
+  Future<void> _persistJourneyProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+    final payload = _journeyProgressById.map(
+      (journeyId, days) {
+        final ordered = days.toList(growable: false)..sort();
+        return MapEntry(journeyId, ordered);
+      },
+    );
+    await prefs.setString(_prefJourneyProgress, jsonEncode(payload));
   }
 
   Future<void> _autoGenerateMorningGreetingIfNeeded() async {
@@ -701,68 +913,197 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  int _cachedVerseCount() {
-    return chapterVerseCache.values.fold<int>(
-      0,
-      (sum, verses) => sum + verses.length,
-    );
-  }
-
-  bool _isCompleteCorpusTotal(int total) {
-    return total >= _completeCorpusMin && total <= _completeCorpusMax;
-  }
-
-  String _verseDedupeKey(Verse verse) {
-    if (verse.id > 0) {
-      return 'id:${verse.id}';
+  List<JournalEntry> _decodeJournalEntries(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return const <JournalEntry>[];
     }
-    return 'ref:${verse.ref}';
-  }
 
-  int _safeVerseNumber(Verse verse) {
-    if (verse.verseNumber > 0) {
-      return verse.verseNumber;
-    }
-    final pieces = verse.ref.split('.');
-    if (pieces.isNotEmpty) {
-      final parsed = int.tryParse(pieces.last.trim());
-      if (parsed != null) {
-        return parsed;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List<dynamic>) {
+        return const <JournalEntry>[];
       }
+
+      final entries = <JournalEntry>[];
+      for (final item in decoded) {
+        if (item is Map) {
+          final map = item.map(
+            (key, value) => MapEntry(key.toString(), value),
+          );
+          final entry = JournalEntry.fromJson(map);
+          if (entry.text.trim().isNotEmpty) {
+            entries.add(entry);
+          }
+        }
+      }
+      return entries;
+    } catch (_) {
+      return const <JournalEntry>[];
     }
-    return 1 << 30;
   }
 
-  int _compareVerseOrder(Verse a, Verse b) {
-    final chapterCompare = a.chapter.compareTo(b.chapter);
-    if (chapterCompare != 0) {
-      return chapterCompare;
+  Map<String, Set<int>> _decodeJourneyProgress(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return <String, Set<int>>{};
     }
-    final verseCompare = _safeVerseNumber(a).compareTo(_safeVerseNumber(b));
-    if (verseCompare != 0) {
-      return verseCompare;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return <String, Set<int>>{};
+      }
+
+      final progress = <String, Set<int>>{};
+      decoded.forEach((journeyId, value) {
+        if (value is! List<dynamic>) {
+          return;
+        }
+        final daySet = value
+            .map((item) => item is int ? item : int.tryParse('$item'))
+            .whereType<int>()
+            .where((day) => day > 0)
+            .toSet();
+        if (daySet.isNotEmpty) {
+          progress[journeyId] = daySet;
+        }
+      });
+      return progress;
+    } catch (_) {
+      return <String, Set<int>>{};
     }
-    return a.id.compareTo(b.id);
   }
 
-  Map<int, List<Verse>> _groupVersesByChapter(List<Verse> verses) {
-    final grouped = <int, List<Verse>>{};
-    for (final verse in verses) {
-      grouped.putIfAbsent(verse.chapter, () => <Verse>[]).add(verse);
+  Future<void> _migrateLegacyRitualReflectionsIfNeeded() async {
+    if (journalEntries.isNotEmpty || ritualReflections.isEmpty) {
+      return;
     }
-    return grouped.map((chapter, values) {
-      values.sort(_compareVerseOrder);
-      return MapEntry(chapter, List<Verse>.unmodifiable(values));
-    });
+
+    final now = DateTime.now();
+    journalEntries = ritualReflections.asMap().entries.map((item) {
+      final index = item.key;
+      final text = item.value;
+      return JournalEntry(
+        id: 'legacy_${now.microsecondsSinceEpoch}_$index',
+        createdAt: now.subtract(Duration(minutes: index)),
+        text: text,
+      );
+    }).toList(growable: false);
+    await _persistJournalEntries();
   }
 
-  bool _isYesterday(String earlier, String later) {
-    final first = DateTime.tryParse(earlier);
-    final second = DateTime.tryParse(later);
-    if (first == null || second == null) {
+  Future<bool> _setVerseNotificationsEnabled(
+    bool value, {
+    required SharedPreferences prefs,
+  }) async {
+    if (!value) {
+      verseNotificationsEnabled = false;
+      await prefs.setBool(_prefVerseNotificationsEnabled, false);
+      await _verseNotificationService.cancelDaily();
       return false;
     }
-    return second.difference(first).inDays == 1;
+
+    final granted = await _verseNotificationService.requestPermission();
+    if (!granted) {
+      verseNotificationsEnabled = false;
+      await prefs.setBool(_prefVerseNotificationsEnabled, false);
+      await _verseNotificationService.cancelDaily();
+      return false;
+    }
+
+    verseNotificationsEnabled = true;
+    await prefs.setBool(_prefVerseNotificationsEnabled, true);
+    await _syncVerseNotifications();
+    return true;
+  }
+
+  Future<void> _syncVerseNotifications() async {
+    if (!verseNotificationsEnabled || verseNotificationsPaused) {
+      await _verseNotificationService.cancelDaily();
+      return;
+    }
+
+    final (hour, minute) = _notificationHourAndMinute();
+    final strings = AppStrings(languageCode);
+
+    try {
+      await _verseNotificationService.scheduleDaily(
+        hour: hour,
+        minute: minute,
+        title: _buildVerseNotificationTitle(strings),
+        body: _buildVerseNotificationBody(strings),
+      );
+    } catch (error, stackTrace) {
+      _verseNotificationService.logScheduleError(
+        error,
+        stackTrace: stackTrace,
+        context: 'sync',
+      );
+    }
+  }
+
+  (int, int) _notificationHourAndMinute() {
+    switch (verseNotificationWindow) {
+      case notificationWindowMorning:
+        return (_morningWindowHour, _morningWindowMinute);
+      case notificationWindowEvening:
+        return (_eveningWindowHour, _eveningWindowMinute);
+      default:
+        return (verseNotificationCustomHour, verseNotificationCustomMinute);
+    }
+  }
+
+  String _normalizeNotificationWindow(String value) {
+    switch (value) {
+      case notificationWindowMorning:
+      case notificationWindowEvening:
+      case notificationWindowCustom:
+        return value;
+      default:
+        return notificationWindowMorning;
+    }
+  }
+
+  int _normalizeHour(int value) {
+    if (value < 0) {
+      return 0;
+    }
+    if (value > 23) {
+      return 23;
+    }
+    return value;
+  }
+
+  int _normalizeMinute(int value) {
+    if (value < 0) {
+      return 0;
+    }
+    if (value > 59) {
+      return 59;
+    }
+    return value;
+  }
+
+  String _buildVerseNotificationTitle(AppStrings strings) {
+    if (dailyVerse != null) {
+      return '${strings.t('notification_title')} - BG ${dailyVerse!.ref}';
+    }
+    return strings.t('notification_title');
+  }
+
+  String _buildVerseNotificationBody(AppStrings strings) {
+    final verseLine = _shortVerseLine(
+      dailyVerse?.translation ?? strings.t('notification_default_verse_line'),
+    );
+    final prompt = strings.t('notification_reflection_prompt');
+    return '$verseLine\n${strings.t('notification_reflect_prefix')}: $prompt';
+  }
+
+  String _shortVerseLine(String text) {
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= 120) {
+      return normalized;
+    }
+    return '${normalized.substring(0, 120).trimRight()}...';
   }
 
   String _todayKey() {
@@ -771,5 +1112,24 @@ class AppState extends ChangeNotifier {
     final month = now.month.toString().padLeft(2, '0');
     final day = now.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
+  }
+
+  String _friendlyError(
+    Object error,
+    StackTrace stackTrace, {
+    required String context,
+  }) {
+    return AppErrorMapper.toUserMessage(
+      error,
+      AppStrings(languageCode),
+      stackTrace: stackTrace,
+      context: 'AppState.$context',
+    );
+  }
+
+  void _markOfflineFromError(Object error) {
+    if (AppErrorMapper.isConnectivityIssue(error)) {
+      offlineMode = true;
+    }
   }
 }

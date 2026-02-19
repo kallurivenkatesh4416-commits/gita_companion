@@ -1,0 +1,441 @@
+================================================================================
+  GITA COMPANION — UX REVIEW & IMPROVEMENT SUGGESTIONS
+  Reviewed: 2026-02-18
+  Scope: All screens, widgets, theme, navigation, and overall flow
+================================================================================
+
+
+PART 1: WHAT WORKS WELL
+================================================================================
+
+1. VISUAL IDENTITY & THEME
+   - The saffron/terracotta/parchment palette is warm, calming, and deeply
+     appropriate for a spiritual app. It doesn't feel generic.
+   - Cormorant Garamond for headings + Source Sans 3/Source Serif 4 for body
+     is an excellent pairing — elegant but readable.
+   - The color constants (_paper, _ink, _inkMuted, _primary, _secondary) are
+     well-organized and consistently used across the app.
+
+2. SPIRITUAL BACKGROUND WIDGET
+   - The animated dust motes + mandala + glow orbs create a living, breathing
+     backdrop without being distracting. This is a standout feature.
+   - It's subtle enough not to interfere with readability.
+
+3. VERSE PREVIEW CARD (Home Screen)
+   - The Om watermark behind the text is a beautiful touch.
+   - Tag chips (theme tags) give quick context without overwhelming.
+   - Pill badge with chapter/verse ref is clean and scannable.
+
+4. ONBOARDING FLOW
+   - Two steps (preferences + optional email) is the right length — not too
+     long, not too short.
+   - Language and guidance-mode selection upfront is smart; it personalizes
+     the experience from the start.
+
+5. VERIFICATION BADGE SYSTEM
+   - The 3-tier system (VERIFIED / REVIEWED / RAW) builds trust.
+   - The expandable panel with provenance details is transparent without
+     being in-your-face.
+
+6. DAILY RITUAL SCREEN
+   - The 3-step flow (mood → verse → action) is a thoughtful guided
+     experience. It gives structure to a spiritual practice.
+
+7. COLLECTIONS / BOOKMARKS
+   - Named collections ("Morning", "Difficult times") are more useful than
+     a flat favorites list. Good decision to support both verses and answers.
+
+8. OFFLINE MODE AWARENESS
+   - The subtle offline notices (secondaryContainer color) are informative
+     without being alarming. Good use of calm messaging.
+
+
+PART 2: AREAS FOR IMPROVEMENT
+================================================================================
+
+----------------------------------------------------------------------
+A. HOME SCREEN — Information Density & Hierarchy
+----------------------------------------------------------------------
+
+ISSUE: The home screen packs a lot into one scroll: greeting, daily verse
+card, 6 companion tool tiles, and potentially more. For a spiritual/mindful
+app, this can feel busy rather than serene.
+
+SUGGESTIONS:
+
+  A1. REDUCE THE GRID TO 4 PRIMARY TILES
+      Current: Check-in, Chapters, Favorites, Journal, Collections, Journeys
+      (6 tiles in a 2-column grid)
+
+      Proposed: Keep the 4 most-used tiles in the grid:
+        - Check-in (mood)
+        - Chapters (browse)
+        - Journeys (guided paths)
+        - Collections (bookmarks)
+
+      Move "Favorites" and "Journal" into the Settings or a "My Space"
+      section. Favorites overlaps with Collections conceptually, and Journal
+      is a less frequent action. This declutters the home grid from 3 rows
+      to 2 rows — the screen feels more breathable.
+
+  A2. ADD VERTICAL BREATHING ROOM
+      The spacing between the daily verse card and the grid (currently 20px)
+      could be 28-32px. Between the greeting and the verse card, 24px
+      instead of 16px. Small spacing increases make the screen feel calmer.
+
+  A3. GREETING SECTION — SIMPLIFY
+      The morning greeting is nice, but if it's a long string it competes
+      with the verse card for attention. Consider making the greeting a
+      single short line (max ~40 characters) and letting the daily verse
+      be the hero element.
+
+----------------------------------------------------------------------
+B. VERSE DETAIL SCREEN — Scroll Fatigue
+----------------------------------------------------------------------
+
+ISSUE: The verse detail screen has a LOT of sections stacked vertically:
+  Sanskrit → Transliteration → Translation → Recitation control →
+  "Ask about this verse" button → Tags
+
+For longer verses, the user scrolls extensively. The primary actions
+(Ask, Share in the future) are buried below the fold.
+
+SUGGESTIONS:
+
+  B1. COLLAPSIBLE SANSKRIT / TRANSLITERATION
+      Sanskrit and transliteration are reference text — most users read
+      the translation. Wrap Sanskrit + Transliteration in an ExpansionTile
+      or a "Show original text" toggle. Default: collapsed.
+      This puts the translation front-and-center, reducing scroll distance.
+
+  B2. STICKY ACTION BAR AT BOTTOM
+      Instead of inline buttons that scroll away, add a slim bottom bar
+      (BottomAppBar or a custom Container) with icon buttons:
+        [Bookmark] [Share] [Ask Gita] [Recite]
+      This keeps actions always accessible regardless of scroll position.
+      Remove the large FilledButton + OutlinedButton from the body.
+
+  B3. TRANSLITERATION HIGHLIGHTING
+      The animated highlight during recitation is a great idea, but the
+      AnimatedContainer approach can feel janky if the text reflows.
+      Consider using RichText with TextSpan styling instead — highlight
+      the current word inline rather than wrapping sections.
+
+----------------------------------------------------------------------
+C. ASK / CHAT SCREEN — Conversation Feel
+----------------------------------------------------------------------
+
+ISSUE: The chat screen works but feels utilitarian. For a spiritual
+companion, the conversation should feel warm and personal.
+
+SUGGESTIONS:
+
+  C1. ROUNDED BUBBLE STYLING
+      The current message bubbles use Card with standard Material elevation.
+      Switch to custom containers with:
+        - User messages: right-aligned, primary color at 12% opacity,
+          rounded corners (16px, with bottom-right at 4px)
+        - Assistant messages: left-aligned, surface color, rounded corners
+          (16px, with bottom-left at 4px)
+      This creates a modern chat feel without Material Card borders.
+
+  C2. TYPING INDICATOR
+      When waiting for a streaming response, show a gentle 3-dot pulse
+      animation (like iMessage) instead of just a CircularProgressIndicator.
+      The progress indicator feels "loading" rather than "thinking."
+
+  C3. SAVE ANSWER BUTTON — MAKE IT SUBTLER
+      The "Save Answer" button next to every assistant message can look
+      repetitive in a long conversation. Instead:
+        - Show it only on long-press (context menu) or as a small
+          bookmark icon that fades in on the message bubble's top-right
+        - Or show it only on the most recent assistant message
+
+  C4. SUGGESTED FOLLOW-UP QUESTIONS
+      After an AI answer, show 2-3 tappable chip suggestions like:
+        "Tell me more" | "Related verse" | "How to practice this"
+      This guides users who don't know what to ask next and makes the
+      experience feel more interactive.
+
+----------------------------------------------------------------------
+D. CHAPTER LIST & DETAIL — Navigation Depth
+----------------------------------------------------------------------
+
+ISSUE: Getting to a verse requires: Home → Chapters → Chapter X →
+Verse Y → Verse Detail. That's 4 taps deep. If the user wants to
+browse verses casually, this feels heavy.
+
+SUGGESTIONS:
+
+  D1. CHAPTER DETAIL — SHOW MORE VERSE PREVIEW
+      Currently each verse in chapter detail shows "BG X.Y" + 2-line
+      translation in a ListTile. Consider showing the full translation
+      (up to 4 lines) and adding the Sanskrit first line in a muted
+      style above it. This makes browsing more rewarding without
+      needing to tap into every verse.
+
+  D2. SWIPE NAVIGATION BETWEEN VERSES
+      On the Verse Detail screen, add horizontal swipe (PageView) to
+      move to the next/previous verse within the same chapter. This
+      eliminates the back-tap-forward cycle when reading sequentially.
+      Show small "← Prev" / "Next →" indicators at the bottom.
+
+  D3. CHAPTER LIST — ADD SEARCH
+      18 chapters is manageable, but a user looking for a specific
+      topic (e.g., "karma yoga") has to scan all summaries. Add a
+      simple search/filter bar at the top that filters chapters by
+      name or summary keywords.
+
+----------------------------------------------------------------------
+E. MOOD CHECK-IN SCREEN — Engagement
+----------------------------------------------------------------------
+
+ISSUE: The mood screen shows chip options for mood selection + an
+optional note, then returns guidance. It's functional but flat.
+
+SUGGESTIONS:
+
+  E1. VISUAL MOOD SELECTOR
+      Replace text chips with illustrated mood icons or emoji-style
+      graphics arranged in a circle or gentle curve. "Anxious" with
+      a wave icon, "Grateful" with a sun icon, etc. This makes the
+      selection more engaging and less clinical.
+
+  E2. MOOD HISTORY GLIMPSE
+      Show a tiny "last 7 days" mood strip at the top (colored dots)
+      so the user sees their emotional journey. This adds value to
+      repeated check-ins and creates a gentle habit loop.
+
+  E3. TRANSITION TO GUIDANCE
+      After selecting a mood, instead of immediately showing the AI
+      response, add a brief breathing moment: a 2-second animation
+      (e.g., the Om symbol gently pulsing) with "Finding wisdom for
+      you..." — then fade in the guidance. This pacing feels more
+      intentional and spiritual.
+
+----------------------------------------------------------------------
+F. SETTINGS SCREEN — Organization
+----------------------------------------------------------------------
+
+ISSUE: Settings has many options in a flat list. As features grow,
+this will become unwieldy.
+
+SUGGESTIONS:
+
+  F1. GROUP INTO SECTIONS
+      Use section headers with dividers:
+        PRACTICE: Guidance mode, Language, Voice settings
+        NOTIFICATIONS: Verse time, Enable/disable
+        PRIVACY & DATA: Analytics, Delete data, Email
+        ABOUT: Version, Feedback
+
+  F2. MOVE "DELETE ALL DATA" AWAY FROM CASUAL REACH
+      Currently it's a red destructive button in the same flat list.
+      Put it behind "Privacy & Data" → "Advanced" → "Delete All Data"
+      with a confirmation dialog. Reduce accidental-tap anxiety.
+
+----------------------------------------------------------------------
+G. DAILY RITUAL SCREEN — Flow Polish
+----------------------------------------------------------------------
+
+ISSUE: The 3-step ritual (mood → verse → action) is excellent in
+concept but could use more emotional design.
+
+SUGGESTIONS:
+
+  G1. PROGRESS INDICATOR
+      Show a horizontal stepper (3 dots or a thin progress bar) at the
+      top so the user knows where they are in the flow. "Step 1 of 3"
+      with labels (Reflect → Read → Act).
+
+  G2. TRANSITION ANIMATIONS
+      Between steps, use a gentle crossfade or slide-up rather than
+      an abrupt rebuild. The ritual should feel like a flowing
+      meditation, not a form wizard.
+
+  G3. COMPLETION CELEBRATION
+      After step 3, show a brief "Namaste" or lotus animation with
+      a calm message: "Your morning practice is complete." Then
+      auto-navigate back to home after 3 seconds (or tap to dismiss).
+      This gives closure to the ritual.
+
+----------------------------------------------------------------------
+H. JOURNEYS SCREEN — Progress Motivation
+----------------------------------------------------------------------
+
+ISSUE: Journey cards show a progress bar, which is good. But the
+overall screen could better motivate continued engagement.
+
+SUGGESTIONS:
+
+  H1. STREAK INDICATOR
+      Show a small "3-day streak" badge on active journeys. Spiritual
+      practice benefits from consistency, and gentle streak tracking
+      (without gamification guilt) can help.
+
+  H2. NEXT STEP PREVIEW
+      Below the progress bar, show a one-line preview of the next
+      verse/topic in the journey. "Next: Understanding Dharma (BG 2.31)"
+      This creates anticipation and lowers the friction to continue.
+
+  H3. COMPLETED JOURNEY STATE
+      When a journey reaches 100%, celebrate it. Show a golden lotus
+      icon or a "Journey Complete" badge. Allow re-starting or
+      reviewing the journey's verses.
+
+----------------------------------------------------------------------
+I. FAVORITES SCREEN — Feels Thin
+----------------------------------------------------------------------
+
+ISSUE: The favorites screen is a simple list with a delete button.
+It's functional but doesn't add much value beyond what Collections
+already provides.
+
+SUGGESTIONS:
+
+  I1. CONSIDER MERGING WITH COLLECTIONS
+      Favorites could become a special "pinned" collection that's
+      auto-created. This reduces cognitive load — users don't need
+      to decide between "favorite" and "bookmark to collection."
+
+  I2. IF KEEPING SEPARATE — ADD SORTING
+      Let users sort favorites by: date added, chapter order, or
+      most recently viewed. A simple dropdown at the top.
+
+  I3. VERSE PREVIEW IN FAVORITES
+      Show 2-3 lines of the translation in each favorite item,
+      not just the verse reference. Users should see what they saved
+      without tapping into each one.
+
+----------------------------------------------------------------------
+J. GENERAL / CROSS-CUTTING IMPROVEMENTS
+----------------------------------------------------------------------
+
+  J1. PULL-TO-REFRESH CONSISTENCY
+      Some screens have RefreshIndicator (chapters, chapter detail),
+      others don't (home, favorites, collections). Make it consistent
+      across all list screens.
+
+  J2. EMPTY STATE ILLUSTRATIONS
+      When a list is empty (no favorites, no collections, no journal
+      entries), show a gentle illustration + encouraging text instead
+      of just a plain text message. For example:
+        [Lotus illustration]
+        "Your collection is empty.
+         Bookmark verses that speak to you."
+
+  J3. HAPTIC FEEDBACK ON KEY ACTIONS
+      Add light haptic feedback (HapticFeedback.lightImpact) when:
+        - Favoriting a verse
+        - Adding to a collection
+        - Completing a ritual step
+        - Starting a journey
+      This makes interactions feel tactile and satisfying.
+
+  J4. LOADING SKELETONS INSTEAD OF SPINNERS
+      Replace CircularProgressIndicator with shimmer/skeleton
+      placeholders that match the layout shape. This reduces
+      perceived loading time and feels more polished.
+
+  J5. BACK NAVIGATION — HERO ANIMATIONS
+      When tapping from a chapter card into chapter detail, or from
+      a verse list into verse detail, add Hero animations on the
+      title text or card. This creates visual continuity and makes
+      navigation feel fluid rather than abrupt.
+
+  J6. FONT SIZE ACCESSIBILITY
+      Add a text-size slider in Settings (Small / Medium / Large).
+      Sanskrit text especially benefits from this — some users need
+      larger text for Devanagari script readability.
+
+  J7. DARK MODE
+      The current theme is light-only. A warm dark mode (deep brown
+      background with gold/amber text accents) would:
+        - Reduce eye strain for evening/night reading
+        - Be appropriate for meditative use
+        - Follow the same saffron/spiritual aesthetic
+
+      Suggested dark palette:
+        Background: #1A1410 (deep warm brown)
+        Surface: #2A221A
+        Primary: #D4915A (warm amber)
+        Text: #E8D5B8 (soft parchment)
+
+
+PART 3: PRIORITY RANKING
+================================================================================
+
+HIGH IMPACT, LOW EFFORT (Do First):
+  - A2: Add breathing room / spacing on home screen
+  - B1: Collapsible Sanskrit/Transliteration
+  - D2: Swipe between verses
+  - F1: Group settings into sections
+  - J2: Empty state illustrations
+  - J4: Loading skeletons
+
+HIGH IMPACT, MEDIUM EFFORT:
+  - B2: Sticky bottom action bar on verse detail
+  - C1: Rounded chat bubbles
+  - C4: Suggested follow-up questions
+  - E1: Visual mood selector
+  - G1-G3: Ritual flow polish (stepper, transitions, celebration)
+  - J7: Dark mode
+
+MEDIUM IMPACT, LOW EFFORT:
+  - A3: Simplify greeting
+  - C2: Typing indicator animation
+  - C3: Subtler save-answer button
+  - D1: Richer verse preview in chapter detail
+  - E3: Breathing moment before guidance
+  - H2: Next step preview in journeys
+  - J1: Consistent pull-to-refresh
+  - J3: Haptic feedback
+  - J5: Hero animations
+
+LOWER PRIORITY (Nice to Have):
+  - A1: Reduce grid to 4 tiles (controversial — depends on usage data)
+  - D3: Chapter search
+  - E2: Mood history strip
+  - F2: Move delete-data deeper
+  - H1: Streak indicator
+  - H3: Completed journey celebration
+  - I1: Merge favorites into collections
+  - I2-I3: Favorites sorting and preview
+  - J6: Font size accessibility slider
+
+
+PART 4: OVERALL ASSESSMENT
+================================================================================
+
+The Gita Companion app has a STRONG foundation. The visual identity is
+distinctive and spiritually appropriate. The feature set is comprehensive
+for a first version — daily verse, chapters, mood check-in, AI chat,
+journeys, bookmarks, ritual.
+
+The main areas where the experience can level up:
+
+  1. PACING: The app is content-dense. Adding breathing room (spacing,
+     transitions, collapsible sections) will make it feel more meditative
+     and less like an information app.
+
+  2. NAVIGATION DEPTH: Too many taps to reach core content. Swipe-between-
+     verses and richer previews will reduce friction.
+
+  3. EMOTIONAL DESIGN: The spiritual background animation is excellent,
+     but other interactions (loading, transitions, completions) are still
+     Material-default. Adding custom animations for key moments (ritual
+     completion, mood selection, journey milestones) will make the app
+     feel uniquely spiritual rather than "Flutter with a nice theme."
+
+  4. PROGRESSIVE DISCLOSURE: Show less upfront, reveal on demand.
+     Collapsible sections, context menus instead of always-visible
+     buttons, grouped settings. This keeps the interface clean for
+     casual users while power users can access everything.
+
+The app is well-built. These suggestions are about going from good to
+delightful — making the experience match the depth of the content.
+
+
+================================================================================
+END OF REVIEW
+================================================================================

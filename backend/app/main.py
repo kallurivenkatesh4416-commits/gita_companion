@@ -1,10 +1,14 @@
 ﻿import logging
+import asyncio
+import json
 import time
 from datetime import date
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -14,10 +18,9 @@ from .logging_config import configure_logging
 from .models import Favorite, Verse
 from .schemas import (
     AskRequest,
+    ChapterSummary,
     ChatRequest,
     ChatResponse,
-    ChapterVersePageOut,
-    ChapterSummaryOut,
     FavoriteCreate,
     FavoriteOut,
     GuidanceVerse,
@@ -34,10 +37,11 @@ from .services.cache import TTLCache
 from .services.chatbot import GeminiChatProvider, MockChatProvider, OllamaChatProvider
 from .services.claude_provider import ClaudeChatProvider, ClaudeProvider
 from .services.codex_provider import CodexChatProvider, CodexGuidanceProvider
-from .services.embeddings import LocalHashEmbeddingProvider
+from .services.embeddings import create_embedding_provider
 from .services.guidance import GeminiProvider, MockProvider
 from .services.llm_orchestrator import LLMOrchestrator
 from .services.retrieval import VerseRetriever
+from .services.verification import verify_answer
 
 settings = get_settings()
 configure_logging()
@@ -53,7 +57,12 @@ app.add_middleware(
 )
 
 cache = TTLCache(ttl_seconds=settings.cache_ttl_seconds)
-embedding_provider = LocalHashEmbeddingProvider(dimension=settings.embedding_dim)
+embedding_provider = create_embedding_provider(
+    provider_type=settings.embedding_provider,
+    model_name=settings.embedding_model,
+    dimension=settings.embedding_dim,
+)
+logger.info("Embedding provider: %s (dim=%d)", type(embedding_provider).__name__, embedding_provider.dimension)
 retriever = VerseRetriever(session_factory=SessionLocal, embedding_provider=embedding_provider)
 
 # ---------------------------------------------------------------------------
@@ -124,6 +133,27 @@ MOOD_OPTIONS = [
     'Angry',
     'Hopeful',
 ]
+
+CHAPTER_SUMMARIES: dict[int, dict[str, str]] = {
+    1: {'name': 'Arjuna Vishada Yoga', 'summary': "Arjuna's despair on the battlefield. Overwhelmed by grief at the prospect of fighting his own kin, he lays down his arms."},
+    2: {'name': 'Sankhya Yoga', 'summary': 'The yoga of knowledge. Krishna teaches the eternal nature of the soul, the importance of duty, and introduces karma yoga.'},
+    3: {'name': 'Karma Yoga', 'summary': 'The yoga of selfless action. Krishna explains why action performed without attachment leads to liberation.'},
+    4: {'name': 'Jnana Karma Sanyasa Yoga', 'summary': 'The yoga of knowledge and renunciation of action. Krishna reveals divine incarnation and the fire of knowledge that burns all karma.'},
+    5: {'name': 'Karma Sanyasa Yoga', 'summary': 'The yoga of renunciation. Krishna compares renunciation and selfless action, showing both paths lead to the same goal.'},
+    6: {'name': 'Dhyana Yoga', 'summary': 'The yoga of meditation. Detailed instructions on meditation practice, self-control, and the marks of a true yogi.'},
+    7: {'name': 'Jnana Vijnana Yoga', 'summary': 'The yoga of knowledge and wisdom. Krishna reveals His divine nature and how all of creation rests in Him.'},
+    8: {'name': 'Aksara Brahma Yoga', 'summary': 'The yoga of the imperishable Brahman. Teachings on what happens at the time of death and how to attain the Supreme.'},
+    9: {'name': 'Raja Vidya Raja Guhya Yoga', 'summary': 'The yoga of royal knowledge and royal secret. Krishna reveals the most confidential knowledge of devotion.'},
+    10: {'name': 'Vibhuti Yoga', 'summary': 'The yoga of divine glories. Krishna describes His divine manifestations throughout creation.'},
+    11: {'name': 'Vishvarupa Darshana Yoga', 'summary': "The yoga of the cosmic form. Arjuna is granted divine vision to see Krishna's universal form containing all of existence."},
+    12: {'name': 'Bhakti Yoga', 'summary': 'The yoga of devotion. Krishna explains the path of loving devotion and the qualities of His dearest devotees.'},
+    13: {'name': 'Ksetra Ksetrajna Vibhaga Yoga', 'summary': 'The yoga of the field and its knower. Distinguishing between the body (field) and the soul (knower of the field).'},
+    14: {'name': 'Gunatraya Vibhaga Yoga', 'summary': 'The yoga of the three gunas. Krishna explains sattva, rajas, and tamas — the three qualities of material nature.'},
+    15: {'name': 'Purushottama Yoga', 'summary': 'The yoga of the Supreme Person. The metaphor of the sacred banyan tree and the nature of the Supreme Being.'},
+    16: {'name': 'Daivasura Sampad Vibhaga Yoga', 'summary': 'The yoga of divine and demonic qualities. Contrasting divine virtues with demonic tendencies in human nature.'},
+    17: {'name': 'Shraddhatraya Vibhaga Yoga', 'summary': 'The yoga of the three divisions of faith. How faith, food, sacrifice, and charity differ according to the three gunas.'},
+    18: {'name': 'Moksha Sanyasa Yoga', 'summary': 'The yoga of liberation through renunciation. The grand conclusion synthesizing all teachings, culminating in complete surrender to the Divine.'},
+}
 
 
 def _daily_verse_from_db(db: Session) -> Verse:
@@ -226,6 +256,35 @@ def daily_verse(db: Session = Depends(get_db)) -> Verse:
     return _daily_verse_from_db(db)
 
 
+@app.get('/chapters', response_model=list[ChapterSummary])
+def list_chapters(db: Session = Depends(get_db)) -> list[ChapterSummary]:
+    cache_key = 'chapters:v1'
+    cached = cache.get(cache_key)
+    if isinstance(cached, list):
+        return cached
+
+    chapter_counts = dict(
+        db.execute(
+            select(Verse.chapter, func.count(Verse.id))
+            .group_by(Verse.chapter)
+            .order_by(Verse.chapter)
+        ).all()
+    )
+
+    chapters = [
+        ChapterSummary(
+            chapter=chapter,
+            name=CHAPTER_SUMMARIES.get(chapter, {}).get('name', f'Chapter {chapter}'),
+            summary=CHAPTER_SUMMARIES.get(chapter, {}).get('summary', ''),
+            verse_count=int(chapter_counts.get(chapter, 0)),
+        )
+        for chapter in range(1, 19)
+    ]
+
+    cache.set(cache_key, chapters)
+    return chapters
+
+
 @app.get('/moods', response_model=MoodOptionsResponse)
 def moods() -> MoodOptionsResponse:
     return MoodOptionsResponse(moods=MOOD_OPTIONS)
@@ -253,8 +312,21 @@ def mood_guidance(request: MoodGuidanceRequest) -> GuidanceResponse:
         language=request.language,
         verses=verses,
     )
-    cache.set(cache_key, result)
-    return result
+    verification = verify_answer(
+        answer_text=result.guidance_long,
+        response_verses=result.verses,
+        retrieved_verses=verses,
+    )
+    verified_result = result.model_copy(
+        update={
+            'answer_text': result.guidance_long,
+            'verification_level': verification.level,
+            'verification_details': verification.checks,
+            'provenance': verification.provenance,
+        }
+    )
+    cache.set(cache_key, verified_result)
+    return verified_result
 
 
 @app.post('/ask', response_model=GuidanceResponse)
@@ -275,18 +347,38 @@ def ask(request: AskRequest) -> GuidanceResponse:
         language=request.language,
         verses=verses,
     )
-    cache.set(cache_key, result)
-    return result
+    verification = verify_answer(
+        answer_text=result.guidance_long,
+        response_verses=result.verses,
+        retrieved_verses=verses,
+    )
+    verified_result = result.model_copy(
+        update={
+            'answer_text': result.guidance_long,
+            'verification_level': verification.level,
+            'verification_details': verification.checks,
+            'provenance': verification.provenance,
+        }
+    )
+    cache.set(cache_key, verified_result)
+    return verified_result
 
 
-@app.post('/chat', response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
+def _chat_cache_key(request: ChatRequest) -> str:
+    message = request.message.strip()
+    history_text = '|'.join(
+        f'{turn.role}:{turn.content.strip().lower()}'
+        for turn in request.history[-12:]
+    )
+    return f'chat:{request.mode}:{request.language}:{message.lower()}:{hash(history_text)}'
+
+
+def _build_verified_chat_response(request: ChatRequest) -> ChatResponse:
     message = request.message.strip()
     if not message:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Message cannot be empty')
 
-    history_text = '|'.join(f'{turn.role}:{turn.content.strip().lower()}' for turn in request.history[-12:])
-    cache_key = f'chat:{request.mode}:{request.language}:{message.lower()}:{hash(history_text)}'
+    cache_key = _chat_cache_key(request)
     cached = cache.get(cache_key)
     if isinstance(cached, ChatResponse):
         return cached
@@ -305,8 +397,96 @@ def chat(request: ChatRequest) -> ChatResponse:
         history=request.history,
         verses=verses,
     )
-    cache.set(cache_key, result)
-    return result
+    verification = verify_answer(
+        answer_text=result.reply,
+        response_verses=result.verses,
+        retrieved_verses=verses,
+    )
+    verified_result = result.model_copy(
+        update={
+            'answer_text': result.reply,
+            'verification_level': verification.level,
+            'verification_details': verification.checks,
+            'provenance': verification.provenance,
+        }
+    )
+    cache.set(cache_key, verified_result)
+    return verified_result
+
+
+def _iter_reply_chunks(reply: str, *, chunk_chars: int = 28) -> list[str]:
+    words = reply.split()
+    if not words:
+        return []
+
+    chunks: list[str] = []
+    current_words: list[str] = []
+    current_len = 0
+
+    for word in words:
+        word_len = len(word)
+        proposed_len = word_len if not current_words else current_len + 1 + word_len
+        if current_words and proposed_len > chunk_chars:
+            chunks.append(' '.join(current_words) + ' ')
+            current_words = [word]
+            current_len = word_len
+        else:
+            current_words.append(word)
+            current_len = proposed_len
+
+    if current_words:
+        chunks.append(' '.join(current_words))
+    return chunks
+
+
+def _sse_event(event: str, payload: dict[str, Any]) -> str:
+    return f'event: {event}\ndata: {json.dumps(payload, ensure_ascii=True)}\n\n'
+
+
+@app.post('/chat', response_model=ChatResponse)
+def chat(request: ChatRequest) -> ChatResponse:
+    return _build_verified_chat_response(request)
+
+
+@app.post('/chat/stream')
+async def chat_stream(request: ChatRequest, raw_request: Request) -> StreamingResponse:
+    async def event_generator():
+        try:
+            result = await run_in_threadpool(_build_verified_chat_response, request)
+            for chunk in _iter_reply_chunks(result.reply):
+                if await raw_request.is_disconnected():
+                    return
+                yield _sse_event('token', {'token': chunk})
+                await asyncio.sleep(0.02)
+
+            if await raw_request.is_disconnected():
+                return
+            yield _sse_event('done', result.model_dump(mode='json'))
+        except HTTPException as exc:
+            if await raw_request.is_disconnected():
+                return
+            yield _sse_event(
+                'error',
+                {
+                    'message': str(exc.detail),
+                    'status_code': exc.status_code,
+                },
+            )
+        except Exception:
+            logger.exception('chat_stream_failed')
+            if await raw_request.is_disconnected():
+                return
+            yield _sse_event('error', {'message': 'Streaming failed'})
+
+    return StreamingResponse(
+        event_generator(),
+        media_type='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',
+        },
+    )
 
 
 @app.post('/morning-greeting', response_model=MorningGreetingResponse)
@@ -354,84 +534,35 @@ def morning_greeting(request: MorningGreetingRequest, db: Session = Depends(get_
     return result
 
 
+@app.get('/verses', response_model=list[VerseOut])
+def list_verses(
+    chapter: int | None = Query(default=None, ge=1, le=18),
+    db: Session = Depends(get_db),
+) -> list[VerseOut]:
+    chapter_key = chapter if chapter is not None else 'all'
+    cache_key = f'verses:{chapter_key}'
+    cached = cache.get(cache_key)
+    if isinstance(cached, list):
+        return cached
+
+    query = select(Verse)
+    if chapter is not None:
+        query = query.where(Verse.chapter == chapter)
+
+    verses = list(
+        db.execute(query.order_by(Verse.chapter, Verse.verse_number)).scalars().all()
+    )
+    payload = [VerseOut.model_validate(verse) for verse in verses]
+    cache.set(cache_key, payload)
+    return payload
+
+
 @app.get('/verses/{verse_id}', response_model=VerseOut)
 def get_verse(verse_id: int, db: Session = Depends(get_db)) -> Verse:
     verse = db.get(Verse, verse_id)
     if verse is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Verse not found')
     return verse
-
-
-@app.get('/verses', response_model=list[VerseOut])
-def list_verses(
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=200, ge=1, le=500),
-    db: Session = Depends(get_db),
-) -> list[Verse]:
-    return list(
-        db.execute(select(Verse).order_by(Verse.id).offset(offset).limit(limit))
-        .scalars()
-        .all()
-    )
-
-
-@app.get('/verse-stats')
-def verse_stats(db: Session = Depends(get_db)) -> dict[str, int]:
-    total = int(db.scalar(select(func.count(Verse.id))) or 0)
-    return {'total_verses': total, 'expected_minimum': 700}
-
-
-@app.get('/chapters', response_model=list[ChapterSummaryOut])
-def list_chapters(db: Session = Depends(get_db)) -> list[ChapterSummaryOut]:
-    rows = db.execute(
-        select(Verse.chapter, func.count(Verse.id))
-        .group_by(Verse.chapter)
-        .order_by(Verse.chapter)
-    ).all()
-    count_by_chapter = {int(chapter): int(count) for chapter, count in rows}
-
-    return [
-        ChapterSummaryOut(chapter=chapter, verse_count=count_by_chapter.get(chapter, 0))
-        for chapter in range(1, 19)
-    ]
-
-
-@app.get('/chapters/{chapter}/verses', response_model=ChapterVersePageOut)
-def list_chapter_verses(
-    chapter: int,
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=200, ge=1, le=500),
-    db: Session = Depends(get_db),
-) -> ChapterVersePageOut:
-    if chapter < 1 or chapter > 18:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail='Chapter must be between 1 and 18',
-        )
-
-    total = int(
-        db.scalar(select(func.count(Verse.id)).where(Verse.chapter == chapter)) or 0
-    )
-    items = list(
-        db.execute(
-            select(Verse)
-            .where(Verse.chapter == chapter)
-            .order_by(Verse.verse_number.asc(), Verse.id.asc())
-            .offset(offset)
-            .limit(limit)
-        )
-        .scalars()
-        .all()
-    )
-    has_more = (offset + len(items)) < total
-
-    return ChapterVersePageOut(
-        items=items,
-        total=total,
-        limit=limit,
-        offset=offset,
-        has_more=has_more,
-    )
 
 
 @app.get('/favorites', response_model=list[FavoriteOut])

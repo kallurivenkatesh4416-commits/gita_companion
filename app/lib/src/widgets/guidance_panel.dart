@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
+import 'verification_badge_panel.dart';
 
 class GuidancePanel extends StatelessWidget {
   final GuidanceResponse guidance;
@@ -27,13 +28,18 @@ class GuidancePanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(99),
               ),
               child: Text(
-                guidance.mode == 'comfort'
-                    ? copy.t('comfort_mode')
-                    : copy.t('clarity_mode'),
+                copy.guidanceModeLabel(guidance.mode),
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: colorScheme.secondary,
                     ),
               ),
+            ),
+            const SizedBox(height: 10),
+            VerificationBadgePanel(
+              strings: copy,
+              verificationLevel: guidance.verificationLevel,
+              verificationDetails: guidance.verificationDetails,
+              provenance: guidance.provenance,
             ),
             const SizedBox(height: 12),
             Text(guidance.guidanceShort,

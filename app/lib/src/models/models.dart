@@ -37,34 +37,23 @@ class Verse {
 
 class ChapterSummary {
   final int chapter;
+  final String name;
   final int verseCount;
+  final String summary;
 
   const ChapterSummary({
     required this.chapter,
+    required this.name,
     required this.verseCount,
+    required this.summary,
   });
 
   factory ChapterSummary.fromJson(Map<String, dynamic> json) {
     return ChapterSummary(
       chapter: json['chapter'] as int,
+      name: json['name'] as String,
       verseCount: json['verse_count'] as int? ?? 0,
-    );
-  }
-}
-
-class VerseStats {
-  final int totalVerses;
-  final int expectedMinimum;
-
-  const VerseStats({
-    required this.totalVerses,
-    required this.expectedMinimum,
-  });
-
-  factory VerseStats.fromJson(Map<String, dynamic> json) {
-    return VerseStats(
-      totalVerses: json['total_verses'] as int? ?? 0,
-      expectedMinimum: json['expected_minimum'] as int? ?? 700,
+      summary: json['summary'] as String? ?? '',
     );
   }
 }
@@ -151,12 +140,62 @@ class SafetyMeta {
   }
 }
 
+class VerificationCheck {
+  final String name;
+  final bool passed;
+  final String note;
+
+  const VerificationCheck({
+    required this.name,
+    required this.passed,
+    required this.note,
+  });
+
+  factory VerificationCheck.fromJson(Map<String, dynamic> json) {
+    return VerificationCheck(
+      name: json['name'] as String? ?? '',
+      passed: json['passed'] as bool? ?? false,
+      note: json['note'] as String? ?? '',
+    );
+  }
+}
+
+class ProvenanceVerse {
+  final int verseId;
+  final int chapter;
+  final int verse;
+  final String sanskrit;
+  final String translationSource;
+
+  const ProvenanceVerse({
+    required this.verseId,
+    required this.chapter,
+    required this.verse,
+    required this.sanskrit,
+    required this.translationSource,
+  });
+
+  factory ProvenanceVerse.fromJson(Map<String, dynamic> json) {
+    return ProvenanceVerse(
+      verseId: json['verse_id'] as int? ?? 0,
+      chapter: json['chapter'] as int? ?? 0,
+      verse: json['verse'] as int? ?? 0,
+      sanskrit: json['sanskrit'] as String? ?? '',
+      translationSource: json['translation_source'] as String? ?? '',
+    );
+  }
+}
+
 class GuidanceResponse {
   final String mode;
   final String topic;
   final List<GuidanceVerse> verses;
   final String guidanceShort;
   final String guidanceLong;
+  final String answerText;
+  final String verificationLevel;
+  final List<VerificationCheck> verificationDetails;
+  final List<ProvenanceVerse> provenance;
   final MicroPractice microPractice;
   final String reflectionPrompt;
   final SafetyMeta safety;
@@ -167,6 +206,10 @@ class GuidanceResponse {
     required this.verses,
     required this.guidanceShort,
     required this.guidanceLong,
+    required this.answerText,
+    required this.verificationLevel,
+    required this.verificationDetails,
+    required this.provenance,
     required this.microPractice,
     required this.reflectionPrompt,
     required this.safety,
@@ -181,6 +224,18 @@ class GuidanceResponse {
           .toList(growable: false),
       guidanceShort: json['guidance_short'] as String,
       guidanceLong: json['guidance_long'] as String,
+      answerText:
+          json['answer_text'] as String? ?? (json['guidance_long'] as String),
+      verificationLevel: json['verification_level'] as String? ?? 'RAW',
+      verificationDetails:
+          (json['verification_details'] as List<dynamic>? ?? const <dynamic>[])
+              .map((value) =>
+                  VerificationCheck.fromJson(value as Map<String, dynamic>))
+              .toList(growable: false),
+      provenance: (json['provenance'] as List<dynamic>? ?? const <dynamic>[])
+          .map((value) =>
+              ProvenanceVerse.fromJson(value as Map<String, dynamic>))
+          .toList(growable: false),
       microPractice: MicroPractice.fromJson(
           json['micro_practice'] as Map<String, dynamic>),
       reflectionPrompt: json['reflection_prompt'] as String,
@@ -246,9 +301,54 @@ class ChatHistoryEntry {
   }
 }
 
+class JournalEntry {
+  final String id;
+  final DateTime createdAt;
+  final String? moodTag;
+  final int? verseId;
+  final String? verseRef;
+  final String text;
+
+  const JournalEntry({
+    required this.id,
+    required this.createdAt,
+    required this.text,
+    this.moodTag,
+    this.verseId,
+    this.verseRef,
+  });
+
+  factory JournalEntry.fromJson(Map<String, dynamic> json) {
+    return JournalEntry(
+      id: json['id'] as String? ?? '',
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      moodTag: json['mood_tag'] as String?,
+      verseId: json['verse_id'] as int?,
+      verseRef: json['verse_ref'] as String?,
+      text: json['text'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'created_at': createdAt.toIso8601String(),
+      'mood_tag': moodTag,
+      'verse_id': verseId,
+      'verse_ref': verseRef,
+      'text': text,
+    };
+  }
+}
+
 class ChatResponse {
   final String mode;
   final String reply;
+  final String answerText;
+  final String verificationLevel;
+  final List<VerificationCheck> verificationDetails;
+  final List<ProvenanceVerse> provenance;
   final List<GuidanceVerse> verses;
   final String actionStep;
   final String reflectionPrompt;
@@ -257,6 +357,10 @@ class ChatResponse {
   const ChatResponse({
     required this.mode,
     required this.reply,
+    required this.answerText,
+    required this.verificationLevel,
+    required this.verificationDetails,
+    required this.provenance,
     required this.verses,
     required this.actionStep,
     required this.reflectionPrompt,
@@ -267,6 +371,17 @@ class ChatResponse {
     return ChatResponse(
       mode: json['mode'] as String,
       reply: json['reply'] as String,
+      answerText: json['answer_text'] as String? ?? (json['reply'] as String),
+      verificationLevel: json['verification_level'] as String? ?? 'RAW',
+      verificationDetails:
+          (json['verification_details'] as List<dynamic>? ?? const <dynamic>[])
+              .map((value) =>
+                  VerificationCheck.fromJson(value as Map<String, dynamic>))
+              .toList(growable: false),
+      provenance: (json['provenance'] as List<dynamic>? ?? const <dynamic>[])
+          .map((value) =>
+              ProvenanceVerse.fromJson(value as Map<String, dynamic>))
+          .toList(growable: false),
       verses: (json['verses'] as List<dynamic>)
           .map((value) => GuidanceVerse.fromJson(value as Map<String, dynamic>))
           .toList(growable: false),
@@ -303,6 +418,7 @@ class Journey {
   final String description;
   final int days;
   final String status;
+  final List<JourneyDay> plan;
 
   const Journey({
     required this.id,
@@ -310,15 +426,213 @@ class Journey {
     required this.description,
     required this.days,
     required this.status,
+    this.plan = const <JourneyDay>[],
   });
 
   factory Journey.fromJson(Map<String, dynamic> json) {
+    final rawPlan = json['plan'] ?? json['days_plan'];
+    final plan = rawPlan is List<dynamic>
+        ? rawPlan
+            .whereType<Map<String, dynamic>>()
+            .map(JourneyDay.fromJson)
+            .toList(growable: false)
+        : const <JourneyDay>[];
+
     return Journey(
       id: json['id'] as String,
       title: json['title'] as String,
       description: json['description'] as String,
       days: json['days'] as int,
       status: json['status'] as String,
+      plan: plan,
+    );
+  }
+
+  Journey copyWith({
+    String? id,
+    String? title,
+    String? description,
+    int? days,
+    String? status,
+    List<JourneyDay>? plan,
+  }) {
+    return Journey(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      days: days ?? this.days,
+      status: status ?? this.status,
+      plan: plan ?? this.plan,
+    );
+  }
+}
+
+class JourneyDay {
+  final int day;
+  final int chapter;
+  final int verseNumber;
+  final String verseRef;
+  final String verseFocus;
+  final String commentary;
+  final String microPractice;
+  final String reflectionPrompt;
+
+  const JourneyDay({
+    required this.day,
+    required this.chapter,
+    required this.verseNumber,
+    required this.verseRef,
+    required this.verseFocus,
+    required this.commentary,
+    required this.microPractice,
+    required this.reflectionPrompt,
+  });
+
+  factory JourneyDay.fromJson(Map<String, dynamic> json) {
+    return JourneyDay(
+      day: json['day'] as int,
+      chapter: json['chapter'] as int,
+      verseNumber: json['verse_number'] as int,
+      verseRef: json['verse_ref'] as String,
+      verseFocus: json['verse_focus'] as String,
+      commentary: json['commentary'] as String,
+      microPractice: json['micro_practice'] as String,
+      reflectionPrompt: json['reflection_prompt'] as String,
+    );
+  }
+}
+
+/// A single bookmarked item — either a verse or an AI chat answer.
+class BookmarkItem {
+  final String id;
+  final DateTime createdAt;
+
+  /// 'verse' or 'answer'
+  final String type;
+
+  // Verse bookmark fields
+  final int? verseId;
+  final String? verseRef;
+  final String? sanskrit;
+  final String? translation;
+
+  // AI-answer bookmark fields
+  final String? answerText;
+  final String? question;
+
+  const BookmarkItem({
+    required this.id,
+    required this.createdAt,
+    required this.type,
+    this.verseId,
+    this.verseRef,
+    this.sanskrit,
+    this.translation,
+    this.answerText,
+    this.question,
+  });
+
+  factory BookmarkItem.fromJson(Map<String, dynamic> json) {
+    return BookmarkItem(
+      id: json['id'] as String,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      type: json['type'] as String? ?? 'verse',
+      verseId: json['verse_id'] as int?,
+      verseRef: json['verse_ref'] as String?,
+      sanskrit: json['sanskrit'] as String?,
+      translation: json['translation'] as String?,
+      answerText: json['answer_text'] as String?,
+      question: json['question'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'created_at': createdAt.toIso8601String(),
+      'type': type,
+      'verse_id': verseId,
+      'verse_ref': verseRef,
+      'sanskrit': sanskrit,
+      'translation': translation,
+      'answer_text': answerText,
+      'question': question,
+    };
+  }
+
+  /// Create a bookmark from a Verse object.
+  factory BookmarkItem.fromVerse(Verse verse) {
+    return BookmarkItem(
+      id: 'bk_v${verse.id}_${DateTime.now().microsecondsSinceEpoch}',
+      createdAt: DateTime.now(),
+      type: 'verse',
+      verseId: verse.id,
+      verseRef: verse.ref,
+      sanskrit: verse.sanskrit,
+      translation: verse.translation,
+    );
+  }
+
+  /// Create a bookmark from an AI chat answer.
+  factory BookmarkItem.fromAnswer({
+    required String answer,
+    required String question,
+  }) {
+    return BookmarkItem(
+      id: 'bk_a_${DateTime.now().microsecondsSinceEpoch}',
+      createdAt: DateTime.now(),
+      type: 'answer',
+      answerText: answer,
+      question: question,
+    );
+  }
+}
+
+/// A named collection of bookmarks (e.g. "Morning", "Difficult times").
+class BookmarkCollection {
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final List<BookmarkItem> items;
+
+  const BookmarkCollection({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.items,
+  });
+
+  factory BookmarkCollection.fromJson(Map<String, dynamic> json) {
+    return BookmarkCollection(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      items: (json['items'] as List<dynamic>? ?? const <dynamic>[])
+          .map((item) => BookmarkItem.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'name': name,
+      'created_at': createdAt.toIso8601String(),
+      'items': items.map((item) => item.toJson()).toList(growable: false),
+    };
+  }
+
+  BookmarkCollection copyWith({
+    String? name,
+    List<BookmarkItem>? items,
+  }) {
+    return BookmarkCollection(
+      id: id,
+      name: name ?? this.name,
+      createdAt: createdAt,
+      items: items ?? this.items,
     );
   }
 }

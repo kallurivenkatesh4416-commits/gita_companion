@@ -1,4 +1,4 @@
-﻿class AppLanguageOption {
+class AppLanguageOption {
   final String code;
   final String name;
   final String nativeName;
@@ -64,6 +64,20 @@ AppLanguageOption languageOptionFromCode(String code) {
   );
 }
 
+const List<String> supportedGuidanceModes = <String>[
+  'comfort',
+  'clarity',
+  'traditional',
+];
+
+String guidanceModeFromCode(String code) {
+  final normalized = code.trim().toLowerCase();
+  if (supportedGuidanceModes.contains(normalized)) {
+    return normalized;
+  }
+  return supportedGuidanceModes.first;
+}
+
 class AppStrings {
   final String languageCode;
 
@@ -78,6 +92,18 @@ class AppStrings {
     final localized = _moodValues[languageCode] ?? _moodValues['en']!;
     return localized[mood] ?? mood;
   }
+
+  String guidanceModeLabel(String mode) {
+    switch (guidanceModeFromCode(mode)) {
+      case 'comfort':
+        return t('comfort_mode');
+      case 'clarity':
+        return t('clarity_mode');
+      case 'traditional':
+        return t('traditional_mode');
+    }
+    return t('comfort_mode');
+  }
 }
 
 const Map<String, String> _enValues = <String, String>{
@@ -85,12 +111,16 @@ const Map<String, String> _enValues = <String, String>{
   'chat_title': 'Divine Chat',
   'daily_verse': 'Daily Verse',
   'daily_verse_subtitle': 'A steady anchor for today',
-  'daily_verse_primary_subtitle': 'Let this verse guide your next step',
   'start_today_60_sec': 'Start Today (60 sec)',
-  'sadhana_streak': 'Sadhana streak',
   'done_today': 'Done today',
   'daily_verse_update_note': 'Daily verse refreshes once per calendar day.',
   'daily_verse_unavailable': 'Daily verse is unavailable right now.',
+  'offline_mode_notice':
+      'Offline mode: showing cached verses and local data. AI chat needs internet.',
+  'offline_chapter_notice':
+      'Showing cached or bundled chapter data while offline.',
+  'offline_chat_notice':
+      'You are offline. You can read past chats, but sending new AI messages needs internet.',
   'morning_greeting': 'Morning AI Greeting',
   'morning_greeting_subtitle':
       'Generate an AI-crafted shloka greeting with meaning and theme',
@@ -110,10 +140,37 @@ const Map<String, String> _enValues = <String, String>{
   'chatbot_subtitle': 'Conversation with verse-grounded guidance',
   'favorites': 'Favorites',
   'favorites_subtitle': 'Saved verses for revisit',
+  'journal': 'Journal',
+  'journal_subtitle': 'Reflection diary',
   'journeys': 'Journeys',
   'journeys_subtitle': 'Structured progress paths',
+  'journeys_intro':
+      'Choose one path and continue one day at a time. Slow progress is still progress.',
+  'journey_status_not_started': 'Not started',
+  'journey_status_in_progress': 'In progress',
+  'journey_status_completed': 'Completed',
+  'journey_progress': 'Progress',
+  'journey_next_day': 'Next day',
+  'journey_complete_message':
+      'This path is complete. You can revisit any day whenever useful.',
+  'journey_day': 'Day',
+  'journey_commentary': 'Commentary',
+  'journey_micro_practice': 'Micro-practice',
+  'journey_reflection_prompt': 'Reflection prompt',
+  'journey_open_verse': 'Open verse',
+  'journey_mark_done': 'Mark done',
+  'journey_done': 'Completed',
+  'journey_empty_detail': 'No daily guidance is available for this journey yet.',
+  'journey_verse_unavailable': 'Could not open this verse right now.',
+  'chapters': 'Chapters',
+  'chapters_subtitle': 'Browse all 18 chapters with quick summaries.',
+  'chapters_card_subtitle': 'Chapter-wise verse browsing',
+  'chapter': 'Chapter',
+  'verses': 'verses',
+  'verses_empty': 'No verses found for this chapter yet.',
   'comfort_mode': 'Comfort Mode',
   'clarity_mode': 'Clarity Mode',
+  'traditional_mode': 'Traditional Mode',
   'good_to_see_you': 'Jai Shri Krishna',
   'stay_intention': 'Stay with one clear intention for the next hour.',
   'anonymous_active': 'Private by default. Anonymous mode is active.',
@@ -124,38 +181,36 @@ const Map<String, String> _enValues = <String, String>{
   'supporting_verses': 'Supporting verses',
   'action': 'Action',
   'reflect': 'Reflect',
-  'bookmark': 'Bookmark',
-  'ask_gita': 'Explain',
-  'recite': 'Chant',
-  'random_verse': 'Random Verse',
-  'browse_chapters': 'Browse Chapters',
-  'suggested_followups': 'Suggested follow-ups',
-  'follow_up_tell_more': 'Tell me more',
-  'follow_up_related_verse': 'Related verse',
-  'follow_up_practice_this': 'How to practice this',
+  'verification_verified': 'VERIFIED',
+  'verification_reviewed': 'REVIEWED',
+  'verification_raw': 'RAW',
+  'verification_details': 'Verification details',
+  'verification_verses_used': 'Verses used',
+  'verification_checks': 'Checks',
+  'verification_pass': 'PASS',
+  'verification_fail': 'FAIL',
   'ritual_step_mood': 'Step 1: Choose your mood',
-  'ritual_step_breathe': 'Step 2: Breathe for 10 seconds',
   'ritual_step_verse': 'Step 2: Read today\'s verse',
-  'ritual_step_action': 'Step 3: Receive your Sankalpa',
-  'ritual_step_reflect': 'Reflect',
-  'ritual_step_read': 'Read',
-  'ritual_step_act': 'Sankalpa',
+  'ritual_step_action': 'Step 3: Take one action',
   'ritual_continue': 'Continue',
-  'ritual_get_action': 'Get my Sankalpa',
-  'ritual_action_for_now': 'Sankalpa for now',
-  'ritual_next_hour_sankalpa': 'Sankalpa for the next hour',
-  'todays_sankalpa': 'Today\'s Sankalpa',
-  'ritual_set_reminder': 'Set Reminder (60 min)',
-  'ritual_reminder_stub': 'Reminder support will be available soon.',
-  'ritual_breathing_title': 'Arrive in stillness',
-  'ritual_breathing_subtitle': 'Inhale... Exhale...',
-  'ritual_breathing_skip': 'Skip',
+  'ritual_get_action': 'Get today action',
+  'ritual_action_for_now': 'Action for now',
   'ritual_optional_reflection': 'Optional reflection (one line)',
   'ritual_mark_done': 'Mark Done',
   'ritual_done_message': 'Ritual saved. Steady progress.',
-  'ritual_completed_title': 'Your morning practice is complete.',
-  'ritual_completed_subtitle': 'Namaste. Carry this steadiness into your day.',
   'ritual_open_verse_failed': 'Could not open verse details right now.',
+  'error_network_timeout':
+      'Connection timed out. Please take a steady breath and try again.',
+  'error_network_unavailable':
+      'Could not reach the service. Please check your connection and try again.',
+  'error_server':
+      'Service is unavailable right now. Please pause for a moment and try again shortly.',
+  'error_auth': 'Your session needs attention. Please sign in again.',
+  'error_request':
+      'Could not complete that request. Please review and try again.',
+  'error_generic': 'Something went wrong. Please try again.',
+  'error_try_again_short':
+      'I could not respond just now. Please take a breath and try again.',
   'voice_start': 'Voice input',
   'voice_stop': 'Stop listening',
   'voice_unavailable': 'Microphone is not available on this device/browser.',
@@ -168,10 +223,20 @@ const Map<String, String> _enValues = <String, String>{
   'mood_note_label': 'Optional note',
   'mood_note_hint': 'Write one line about what is weighing on you.',
   'get_guidance': 'Get Guidance',
-  'try_again': 'Try again',
-  'mood_select_up_to_three': 'Choose up to three moods.',
   'pick_one_mood': 'Pick at least one mood.',
   'selected_verses': 'Selected verses',
+  'journal_title': 'Reflection Journal',
+  'journal_search_hint': 'Search entries',
+  'journal_filter_verse': 'Filter by verse',
+  'journal_filter_all_verses': 'All verses',
+  'journal_empty':
+      'No journal entries yet. Reflections from your ritual will appear here.',
+  'journal_mood': 'Mood',
+  'journal_linked_verse': 'Verse',
+  'journal_export': 'Export JSON',
+  'journal_export_done': 'Journal exported',
+  'journal_export_empty': 'No journal entries to export.',
+  'journal_export_unavailable': 'Export file is unavailable on this platform.',
   'settings': 'Settings',
   'privacy_mode': 'Anonymous privacy mode',
   'privacy_mode_subtitle': 'Store no identifying profile data locally.',
@@ -179,12 +244,38 @@ const Map<String, String> _enValues = <String, String>{
   'language': 'Language',
   'voice_input_setting': 'Voice input',
   'voice_output_setting': 'Voice output (read assistant replies)',
+  'notification_section_title': 'Verse Of The Day Notifications',
+  'notification_opt_in_title': 'Daily verse reminders',
+  'notification_opt_in_subtitle':
+      'Receive one respectful verse reminder each day.',
+  'notification_pause_title': 'Pause notifications',
+  'notification_pause_subtitle': 'Keep preferences, pause reminders for now.',
+  'notification_time_window': 'Reminder time',
+  'notification_morning': 'Morning',
+  'notification_evening': 'Evening',
+  'notification_custom_time': 'Specific time',
+  'notification_pick_time': 'Choose time',
+  'notification_permission_denied':
+      'Notifications are off because permission was not granted.',
+  'notification_title': 'Verse of the Day',
+  'notification_default_verse_line': 'Stay steady in your duty.',
+  'notification_reflect_prefix': 'Reflect',
+  'notification_reflection_prompt':
+      'What one intention will guide your next action?',
   'clear_chat_history': 'Clear Chat History',
   'delete_local_data': 'Delete Local Data',
   'onboarding_tag': 'Personal Companion',
   'onboarding_title': 'Gita Companion',
   'onboarding_subtitle':
       'Ground your day with verse-based clarity, emotional steadiness, and small practical actions.',
+  'onboarding_preferences_title': 'Choose Language And Guidance Style',
+  'onboarding_preferences_subtitle':
+      'These choices shape how chat and guidance respond. You can change them later in Settings.',
+  'onboarding_notifications_title': 'Daily reminder (optional)',
+  'onboarding_notifications_subtitle':
+      'Opt in if you want a gentle verse reminder once a day.',
+  'onboarding_continue': 'Continue',
+  'onboarding_back': 'Back',
   'start_private': 'Start private or sign in',
   'email_optional':
       'Email is optional. Anonymous mode keeps identity details local.',
@@ -199,61 +290,40 @@ const Map<String, String> _enValues = <String, String>{
   'sanskrit': 'Sanskrit',
   'transliteration': 'Transliteration',
   'meaning': 'Meaning',
+  'verse_recitation_title': 'Verse recitation',
+  'verse_recitation_play': 'Play',
+  'verse_recitation_pause': 'Pause',
+  'verse_recitation_follow_along': 'Follow along',
+  'verse_recitation_unavailable':
+      'Verse audio is not available for this verse yet.',
+  'ask_about_this_verse': 'Ask about this verse',
+  'verse_context': 'Attached verse context',
+  'verse_context_attached': 'I have attached this verse as chat context',
+  'ask_verse_prefill': 'Help me understand',
   'audio_placeholder_title': 'Audio (placeholder)',
   'audio_placeholder_subtitle':
       'Playback integration can be connected in a later milestone.',
-  'chanting_audio_coming_soon': 'Chanting audio - coming soon',
-  'original_text': 'Original text',
-  'show_original_text': 'Show original text',
-  'previous_verse': 'Previous',
-  'next_verse': 'Next',
-  'verse_unavailable': 'Could not open that verse right now.',
-  'verse_chapter_boundary': 'No more verses in this chapter.',
-  'settings_section_practice': 'PRACTICE',
-  'settings_section_privacy_data': 'PRIVACY & DATA',
-  'settings_section_about': 'ABOUT',
-  'empty_state_hint_favorites':
-      'Save verses that speak to you and revisit them here.',
-  'empty_state_hint_journeys':
-      'Your guidance paths will appear here when available.',
-  'tab_home': 'Home',
-  'tab_verses': 'Verses',
-  'tab_chat': 'Chat',
-  'tab_settings': 'Settings',
-  'verses_browser': 'Verses',
-  'verses_sync': 'Sync verses',
-  'verses_sync_more_actions': 'More sync actions',
-  'verses_force_resync': 'Force Resync',
-  'verse_sync_count': 'Total verses available',
-  'verses_sync_incomplete_server_keep_offline':
-      'Server corpus looks incomplete; keeping your offline library.',
-  'verses_sync_partial_server_warning':
-      'Server corpus appears partial. You can keep using offline verses.',
-  'chapter': 'Chapter',
-  'chapter_has_no_verses': 'No verses available for this chapter yet.',
-  'tag_verses': 'Tagged verses',
-  'tag_verses_count': 'Matches',
-  'tag_verses_empty':
-      'No loaded verses matched this tag yet. Sync to fetch more verses.',
-  'friendly_mood_no_verse':
-      'Couldn\'t find a matching verse for this mood. Try another mood, or ask Gita directly.',
-  'friendly_network_timeout':
-      'The connection took too long. Please try again.',
-  'friendly_auth_error':
-      'Your session needs attention. Please try again.',
-  'friendly_server_error':
-      'The service is taking a short pause. Please try again.',
-  'friendly_network_error':
-      'Couldn\'t reach the service right now. Please check your connection.',
-  'friendly_verses_load_error':
-      'Couldn\'t load verses right now. Please retry.',
-  'friendly_general_error': 'Something went off track. Please try again.',
-  'today': 'Today',
   'retry': 'Retry',
   'divine_chat': 'Divine Chat',
-  'share': 'Share',
-  'preparing_image': 'Preparing image...',
-  'share_failed': 'Unable to share right now.',
+  'collections': 'Collections',
+  'collections_subtitle': 'Named bookmark collections',
+  'collections_empty':
+      'No collections yet. Create one to save verses and answers.',
+  'create_collection': 'Create Collection',
+  'collection_name': 'Collection name',
+  'collection_name_hint': 'e.g. Morning, Difficult times',
+  'add_to_collection': 'Add to Collection',
+  'save_answer': 'Save Answer',
+  'remove_from_collection': 'Remove',
+  'delete_collection': 'Delete Collection',
+  'rename_collection': 'Rename',
+  'collection_items_empty':
+      'No items yet. Save verses or answers to this collection.',
+  'added_to_collection': 'Added to collection',
+  'create': 'Create',
+  'cancel': 'Cancel',
+  'verse_bookmark': 'Verse',
+  'answer_bookmark': 'AI Answer',
 };
 
 const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
@@ -265,7 +335,8 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'daily_verse_subtitle': 'Aaj ke liye ek sthir aadhar',
     'start_today_60_sec': 'Aaj shuru karein (60 sec)',
     'done_today': 'Aaj poora kiya',
-    'daily_verse_update_note': 'Roz ka shlok calendar day me ek baar refresh hota hai.',
+    'daily_verse_update_note':
+        'Roz ka shlok calendar day me ek baar refresh hota hai.',
     'daily_verse_unavailable': 'Daily verse abhi uplabdh nahin hai.',
     'morning_greeting': 'Subah ka AI Greeting',
     'morning_greeting_subtitle':
@@ -291,27 +362,15 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'supporting_verses': 'Sahayak shlok',
     'action': 'Karya',
     'reflect': 'Chintan',
-    'bookmark': 'बुकमार्क',
-    'ask_gita': 'गीता से पूछें',
-    'recite': 'पाठ',
-    'suggested_followups': 'अगले प्रश्न',
-    'follow_up_tell_more': 'और बताइए',
-    'follow_up_related_verse': 'संबंधित श्लोक',
-    'follow_up_practice_this': 'इसे कैसे अभ्यास करें',
     'ritual_step_mood': 'Step 1: Apna mood chunen',
     'ritual_step_verse': 'Step 2: Aaj ka shlok padhein',
     'ritual_step_action': 'Step 3: Ek karya karein',
-    'ritual_step_reflect': 'चिंतन',
-    'ritual_step_read': 'पढ़ें',
-    'ritual_step_act': 'कर्म',
     'ritual_continue': 'Aage badhein',
     'ritual_get_action': 'Aaj ka action paayen',
     'ritual_action_for_now': 'Abhi ka action',
     'ritual_optional_reflection': 'Optional reflection (ek line)',
     'ritual_mark_done': 'Poora mark karein',
     'ritual_done_message': 'Ritual save ho gaya. Aise hi bane rahiye.',
-    'ritual_completed_title': 'आपका सुबह का अभ्यास पूरा हुआ।',
-    'ritual_completed_subtitle': 'नमस्ते। यह स्थिरता दिनभर साथ रखें।',
     'ritual_open_verse_failed': 'Abhi verse details nahi khul paaye.',
     'voice_start': 'Voice input',
     'voice_stop': 'Sunna band karein',
@@ -346,9 +405,16 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'journeys_empty': 'Abhi journeys uplabdh nahin hain.',
     'retry': 'Retry',
     'divine_chat': 'Divya Chat',
-    'share': 'Share karein',
-    'preparing_image': 'Image taiyaar ho rahi hai...',
-    'share_failed': 'Abhi share nahin ho paya.',
+    'collections': 'Sangraha',
+    'collections_empty': 'Abhi koi sangraha nahin. Ek banaayein.',
+    'create_collection': 'Sangraha banayein',
+    'collection_name': 'Sangraha ka naam',
+    'add_to_collection': 'Sangraha mein jodhein',
+    'save_answer': 'Uttar save karein',
+    'delete_collection': 'Sangraha mitayein',
+    'added_to_collection': 'Sangraha mein jodha gaya',
+    'create': 'Banayein',
+    'cancel': 'Radd karein',
   },
   'te': <String, String>{
     'app_title': 'Gita Sahachari',
@@ -373,7 +439,8 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'comfort_mode': 'Comfort Mode',
     'clarity_mode': 'Clarity Mode',
     'good_to_see_you': 'జై శ్రీ కృష్ణ',
-    'stay_intention': 'Taruvata oka gantaki oka spashtamaina sankalpam pettukondi.',
+    'stay_intention':
+        'Taruvata oka gantaki oka spashtamaina sankalpam pettukondi.',
     'anonymous_active': 'Privacy active. Anonymous mode on lo undi.',
     'signed_in_as': 'Signed in as',
     'ask_welcome': 'Edaina adagandi, Gita adharita guidance istanu.',
@@ -381,28 +448,17 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'supporting_verses': 'Maddatu slokalu',
     'action': 'Charya',
     'reflect': 'Aalochana',
-    'bookmark': 'బుక్‌మార్క్',
-    'ask_gita': 'గీతను అడుగు',
-    'recite': 'పఠనం',
-    'suggested_followups': 'తదుపరి ప్రశ్నలు',
-    'follow_up_tell_more': 'ఇంకా చెప్పు',
-    'follow_up_related_verse': 'సంబంధిత శ్లోకం',
-    'follow_up_practice_this': 'దీనిని ఎలా ఆచరించాలి',
     'ritual_step_mood': 'Step 1: Mee mood enchukondi',
     'ritual_step_verse': 'Step 2: I roju slokam chadavandi',
     'ritual_step_action': 'Step 3: Oka charya cheyyandi',
-    'ritual_step_reflect': 'మననం',
-    'ritual_step_read': 'చదవండి',
-    'ritual_step_act': 'ఆచరించండి',
     'ritual_continue': 'Konasaginchu',
     'ritual_get_action': 'I roju action pondandi',
     'ritual_action_for_now': 'Ippati action',
     'ritual_optional_reflection': 'Optional reflection (oka line)',
     'ritual_mark_done': 'Done ga mark cheyyi',
     'ritual_done_message': 'Ritual save ayyindi. Ilaage konasaginchandi.',
-    'ritual_completed_title': 'మీ ఉదయ సాధన పూర్తైంది.',
-    'ritual_completed_subtitle': 'నమస్తే. ఈ స్థిరతను రోజంతా తీసుకెళ్లండి.',
-    'ritual_open_verse_failed': 'Ippudu verse details teravadam saadhyam kaaledu.',
+    'ritual_open_verse_failed':
+        'Ippudu verse details teravadam saadhyam kaaledu.',
     'voice_start': 'Voice input',
     'voice_stop': 'Vinadam aapu',
     'voice_unavailable': 'Microphone ee device/browser lo andubatulo ledu.',
@@ -424,9 +480,15 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'journeys_empty': 'Prastutam journeys andubatulo levu.',
     'retry': 'Retry',
     'divine_chat': 'Divine Chat',
-    'share': 'Share cheyyi',
-    'preparing_image': 'Image tayyaru avutundi...',
-    'share_failed': 'Ippudu share cheyadam kaaledu.',
+    'collections': 'Sankalanalu',
+    'collections_empty': 'Inka sankalanalu levu. Okati create cheyandi.',
+    'create_collection': 'Sankalana create cheyyi',
+    'add_to_collection': 'Sankalana lo cherchinchu',
+    'save_answer': 'Answer save cheyyi',
+    'delete_collection': 'Sankalana delete cheyyi',
+    'added_to_collection': 'Sankalanalo cherchbadinadi',
+    'create': 'Create cheyyi',
+    'cancel': 'Radd cheyyi',
   },
   'ta': <String, String>{
     'app_title': 'Gita Companion',
@@ -444,7 +506,8 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'comfort_mode': 'Comfort Mode',
     'clarity_mode': 'Clarity Mode',
     'good_to_see_you': 'ஜெய் ஸ்ரீ கிருஷ்ணா',
-    'stay_intention': 'Adutha oru mani neram oru thelivana nokkam vaithirungal.',
+    'stay_intention':
+        'Adutha oru mani neram oru thelivana nokkam vaithirungal.',
     'ask_hint': 'Stress, duty, focus, relationships patri kelungal...',
     'supporting_verses': 'Supporting verses',
     'mood_title': 'Mood Check-in',
@@ -496,8 +559,10 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'comfort_mode': 'Comfort Mode',
     'clarity_mode': 'Clarity Mode',
     'good_to_see_you': 'ജയ ശ്രീ കൃഷ്ണ',
-    'stay_intention': 'Adutha oru manikkoorinu oru thelivulla uddesham veikkuka.',
-    'ask_hint': 'Stress, duty, focus, relationships ennivaye kurich chodikku...',
+    'stay_intention':
+        'Adutha oru manikkoorinu oru thelivulla uddesham veikkuka.',
+    'ask_hint':
+        'Stress, duty, focus, relationships ennivaye kurich chodikku...',
     'supporting_verses': 'Supporting verses',
     'mood_title': 'Mood Check-in',
     'mood_heading': 'Ippol ningal engane anubhavikkunnu?',
@@ -544,13 +609,6 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'supporting_verses': 'Versos de apoyo',
     'action': 'Accion',
     'reflect': 'Reflexiona',
-    'bookmark': 'Guardar',
-    'ask_gita': 'Preguntar a Gita',
-    'recite': 'Recitar',
-    'suggested_followups': 'Siguientes preguntas',
-    'follow_up_tell_more': 'Dime mas',
-    'follow_up_related_verse': 'Verso relacionado',
-    'follow_up_practice_this': 'Como practicar esto',
     'voice_start': 'Entrada por voz',
     'voice_stop': 'Detener escucha',
     'voice_unavailable':
@@ -559,11 +617,6 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'stop_audio': 'Detener audio',
     'mood_title': 'Registro emocional',
     'mood_heading': 'Como te sientes ahora mismo?',
-    'ritual_step_reflect': 'Reflexiona',
-    'ritual_step_read': 'Lee',
-    'ritual_step_act': 'Actua',
-    'ritual_completed_title': 'Tu practica de la manana esta completa.',
-    'ritual_completed_subtitle': 'Namaste. Lleva esta calma durante tu dia.',
     'mood_subtitle':
         'Elige estados de animo y agrega una nota corta para recibir guia.',
     'mood_note_label': 'Nota opcional',
@@ -592,8 +645,7 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'email_hint': 'nombre@ejemplo.com',
     'continue_email': 'Continuar con correo',
     'continue_anonymous': 'Continuar anonimamente',
-    'invalid_email':
-        'Ingresa un correo valido o continua en modo anonimo.',
+    'invalid_email': 'Ingresa un correo valido o continua en modo anonimo.',
     'favorites_empty':
         'Aun no hay favoritos. Guarda un verso desde la pantalla de detalle.',
     'journeys_empty': 'Aun no hay recorridos disponibles.',
@@ -605,9 +657,17 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
         'La reproduccion de audio se puede conectar en un hito posterior.',
     'retry': 'Reintentar',
     'divine_chat': 'Chat Divino',
-    'share': 'Compartir',
-    'preparing_image': 'Preparando imagen...',
-    'share_failed': 'No se pudo compartir en este momento.',
+    'collections': 'Colecciones',
+    'collections_empty':
+        'Aun no hay colecciones. Crea una para guardar versos y respuestas.',
+    'create_collection': 'Crear coleccion',
+    'collection_name': 'Nombre de la coleccion',
+    'add_to_collection': 'Agregar a coleccion',
+    'save_answer': 'Guardar respuesta',
+    'delete_collection': 'Eliminar coleccion',
+    'added_to_collection': 'Agregado a la coleccion',
+    'create': 'Crear',
+    'cancel': 'Cancelar',
   },
 };
 

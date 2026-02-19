@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     use_ollama_provider: bool = False
     ollama_base_url: str = "http://host.docker.internal:11434"
     ollama_model: str = "llama3.1:8b"
-    embedding_dim: int = 64
+    embedding_dim: int = 384
+    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_provider: str = "sentence_transformer"  # "sentence_transformer" or "hash"
     cache_ttl_seconds: int = 300
     use_mock_provider: bool = True
 

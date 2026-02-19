@@ -16,8 +16,9 @@ dependencies:
   shared_preferences: ^2.5.2
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.2
-  share_plus: ^10.0.0
-  path_provider: ^2.1.0
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
+  just_audio: ^0.9.46
 
 dev_dependencies:
   flutter_test:
@@ -26,3 +27,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/data/gita_verses_sample.json

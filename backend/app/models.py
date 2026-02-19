@@ -15,11 +15,14 @@ class Verse(Base):
     chapter: Mapped[int] = mapped_column(Integer, nullable=False)
     verse_number: Mapped[int] = mapped_column(Integer, nullable=False)
     ref: Mapped[str] = mapped_column(String(16), nullable=False, unique=True, index=True)
+    chapter_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     sanskrit: Mapped[str] = mapped_column(Text, nullable=False)
-    transliteration: Mapped[str] = mapped_column(Text, nullable=False)
+    transliteration: Mapped[str] = mapped_column(Text, nullable=False, default="")
     translation: Mapped[str] = mapped_column(Text, nullable=False)
+    translation_hi: Mapped[str] = mapped_column(Text, nullable=False, default="")
     tags: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(64), nullable=True)
+    source: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(384), nullable=True)
 
     favorites: Mapped[list["Favorite"]] = relationship(back_populates="verse", cascade="all,delete")
 
