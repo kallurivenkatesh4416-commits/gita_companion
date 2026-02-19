@@ -2,6 +2,7 @@
 import asyncio
 import json
 import time
+import hashlib
 from datetime import date
 from typing import Any
 
@@ -47,14 +48,46 @@ settings = get_settings()
 configure_logging()
 logger = logging.getLogger(__name__)
 
+def _cors_allow_origins() -> list[str]:
+    # Production: lock to a single domain
+    if settings.production_domain:
+        domain = settings.production_domain.rstrip("/")
+        origins = [domain]
+
+        # Optional convenience: allow www. variant
+        if domain.startswith("https://"):
+            origins.append(domain.replace("https://", "https://www.", 1))
+        elif domain.startswith("http://"):
+            origins.append(domain.replace("http://", "http://www.", 1))
+
+        # De-dupe while keeping order
+        return list(dict.fromkeys(origins))
+
+    # Dev-only defaults (safe)
+    return [
+        "http://localhost",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1",
+        "http://127.0.0.1:8000",
+        "http://10.0.2.2",       # Android emulator -> host loopback
+        "http://10.0.2.2:8000",
+    ]
+
+
+
 app = FastAPI(title=settings.app_name, version='0.1.0')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=_cors_allow_origins(),
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
 )
+if not settings.production_domain:
+    logger.warning("PRODUCTION_DOMAIN is not set; CORS is restricted to local dev origins only.")
+else:
+    logger.info("CORS allow_origins=%s", _cors_allow_origins())
 
 cache = TTLCache(ttl_seconds=settings.cache_ttl_seconds)
 embedding_provider = create_embedding_provider(
@@ -226,6 +259,22 @@ def on_startup() -> None:
     init_db()
     logger.info('database_initialized')
 
+    if not settings.use_mock_provider:
+        keys_present = any(
+            [
+                bool(settings.anthropic_api_key),
+                bool(settings.openai_api_key),
+                bool(settings.gemini_api_key),
+            ]
+        )
+        if not keys_present:
+            logger.warning(
+                "LLM STARTUP WARNING: use_mock_provider=false but no API keys are set "
+                "(ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY). "
+                "The app cannot call external LLMs."
+            )
+
+
 
 @app.get('/health')
 def health() -> dict[str, Any]:
@@ -366,11 +415,12 @@ def ask(request: AskRequest) -> GuidanceResponse:
 
 def _chat_cache_key(request: ChatRequest) -> str:
     message = request.message.strip()
-    history_text = '|'.join(
-        f'{turn.role}:{turn.content.strip().lower()}'
+    history_text = "|".join(
+        f"{turn.role}:{turn.content.strip().lower()}"
         for turn in request.history[-12:]
     )
-    return f'chat:{request.mode}:{request.language}:{message.lower()}:{hash(history_text)}'
+    digest = hashlib.md5(history_text.encode("utf-8")).hexdigest()
+    return f"chat:{request.mode}:{request.language}:{message.lower()}:{digest}"
 
 
 def _build_verified_chat_response(request: ChatRequest) -> ChatResponse:

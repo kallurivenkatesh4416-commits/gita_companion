@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     embedding_provider: str = "sentence_transformer"  # "sentence_transformer" or "hash"
     cache_ttl_seconds: int = 300
     use_mock_provider: bool = True
+    production_domain: str | None = None  # e.g. "https://gita.yourdomain.com"
+
+    
 
     # Claude (Anthropic)
     anthropic_api_key: str | None = None
