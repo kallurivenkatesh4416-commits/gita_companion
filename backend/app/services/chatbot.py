@@ -10,6 +10,7 @@ from ..models import Verse
 from ..schemas import ChatResponse, ChatTurn, GuidanceMode, GuidanceVerse, LanguageCode
 from .guidance import extract_json
 from .language import language_instruction
+from .persona import wants_krishna_voice
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,16 @@ def _serialize_history(history: Sequence[ChatTurn]) -> list[dict[str, str]]:
     return [{"role": turn.role, "content": turn.content} for turn in history[-12:]]
 
 
-def _mode_style_instruction(mode: GuidanceMode) -> str:
+def _mode_style_instruction(
+    mode: GuidanceMode,
+    *,
+    prefer_krishna_voice: bool = False,
+) -> str:
+    if prefer_krishna_voice:
+        return (
+            "Voice: speak in a first-person Krishna voice with compassion, calm authority, "
+            "and practical Gita principles. Do not claim supernatural powers."
+        )
     if mode == "comfort":
         return (
             "Style: warm, emotionally supportive, and concise."
@@ -79,6 +89,10 @@ class MockChatProvider:
         verses: Sequence[Verse],
     ) -> ChatResponse:
         verse_payload = _build_verse_payload(verses, mode)
+        prefer_krishna_voice = mode == "traditional" or wants_krishna_voice(
+            message,
+            [turn.content for turn in history if turn.role == "user"],
+        )
         primary_ref = verse_payload[0].ref
         tone_by_language = {
             "en": {
@@ -135,21 +149,29 @@ class MockChatProvider:
         }
         selected_language = language if language in tone_by_language else "en"
         copy = tone_by_language[selected_language]
-        tone = {
-            "comfort": copy["comfort"],
-            "clarity": copy["clarity"],
-            "traditional": copy.get("traditional", copy["clarity"]),
-        }[mode]
-        action_step = copy["action"] if mode != "traditional" else copy.get("traditional_action", copy["action"])
-        reflection_prompt = copy["reflect"] if mode != "traditional" else copy.get("traditional_reflect", copy["reflect"])
+        if prefer_krishna_voice and selected_language == "en":
+            tone = (
+                "Beloved friend, I speak as Krishna's guiding voice: "
+                "act in dharma, offer action without attachment, and keep your mind steady."
+            )
+            action_step = copy.get("traditional_action", copy["action"])
+            reflection_prompt = copy.get("traditional_reflect", copy["reflect"])
+        else:
+            tone = {
+                "comfort": copy["comfort"],
+                "clarity": copy["clarity"],
+                "traditional": copy.get("traditional", copy["clarity"]),
+            }[mode]
+            action_step = copy["action"] if mode != "traditional" else copy.get("traditional_action", copy["action"])
+            reflection_prompt = copy["reflect"] if mode != "traditional" else copy.get("traditional_reflect", copy["reflect"])
         reply_by_language = {
             "en": (
                 f"{tone} Your question was: '{message}'. "
                 f"Begin with verse {primary_ref}, then apply one concrete action in the next hour."
-                if mode != "traditional"
+                if not prefer_krishna_voice and mode != "traditional"
                 else (
                     f"{tone} Your question was: '{message}'. Begin with verse {primary_ref}, "
-                    "reflect briefly on its dharma teaching, then do one duty-aligned action in the next hour."
+                    "contemplate its dharma teaching, then perform one duty-aligned action in the next hour."
                 )
             ),
             "hi": (
@@ -202,12 +224,17 @@ class GeminiChatProvider:
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
     ) -> ChatResponse:
+        prefer_krishna_voice = mode == "traditional" or wants_krishna_voice(
+            message,
+            [turn.content for turn in history if turn.role == "user"],
+        )
         prompt = self._build_prompt(
             message=message,
             mode=mode,
             language=language,
             history=history,
             verses=verses,
+            prefer_krishna_voice=prefer_krishna_voice,
         )
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         payload = {
@@ -238,6 +265,7 @@ class GeminiChatProvider:
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
+        prefer_krishna_voice: bool,
     ) -> str:
         verses_payload = [
             {
@@ -271,7 +299,7 @@ class GeminiChatProvider:
             "Keep tone practical, warm, and concise. Return strict JSON only.\n"
             f"Schema: {json.dumps(schema)}\n"
             f"{language_instruction(language)}\n"
-            f"{_mode_style_instruction(mode)}\n"
+            f"{_mode_style_instruction(mode, prefer_krishna_voice=prefer_krishna_voice)}\n"
             f"Mode: {mode}\n"
             f"Conversation history JSON: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"
@@ -294,12 +322,17 @@ class OllamaChatProvider:
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
     ) -> ChatResponse:
+        prefer_krishna_voice = mode == "traditional" or wants_krishna_voice(
+            message,
+            [turn.content for turn in history if turn.role == "user"],
+        )
         prompt = self._build_prompt(
             message=message,
             mode=mode,
             language=language,
             history=history,
             verses=verses,
+            prefer_krishna_voice=prefer_krishna_voice,
         )
         url = f"{self.base_url}/api/generate"
         payload = {
@@ -332,6 +365,7 @@ class OllamaChatProvider:
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
+        prefer_krishna_voice: bool,
     ) -> str:
         verses_payload = [
             {
@@ -351,7 +385,7 @@ class OllamaChatProvider:
             "3) Return strict JSON only in this structure:\n"
             '{"mode":"comfort|clarity|traditional","reply":"...","verses":[{"verse_id":47,"ref":"2.47","sanskrit":"...","transliteration":"...","translation":"...","why_this":"..."}],"action_step":"...","reflection_prompt":"...","safety":{"flagged":false,"message":null}}\n'
             f"{language_instruction(language)}\n"
-            f"{_mode_style_instruction(mode)}\n"
+            f"{_mode_style_instruction(mode, prefer_krishna_voice=prefer_krishna_voice)}\n"
             f"Mode: {mode}\n"
             f"Conversation history JSON: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"

@@ -35,6 +35,7 @@ from .schemas import (
     VerseOut,
 )
 from .services.cache import TTLCache
+from .services.catalog_bootstrap import ensure_verse_catalog
 from .services.chatbot import GeminiChatProvider, MockChatProvider, OllamaChatProvider
 from .services.claude_provider import ClaudeChatProvider, ClaudeProvider
 from .services.codex_provider import CodexChatProvider, CodexGuidanceProvider
@@ -258,6 +259,17 @@ async def log_requests(request, call_next):
 def on_startup() -> None:
     init_db()
     logger.info('database_initialized')
+    with SessionLocal() as db:
+        catalog_status = ensure_verse_catalog(db)
+    logger.info(
+        'verse_catalog_ready seeded=%s before=%s/%s after=%s/%s source=%s',
+        catalog_status['seeded'],
+        catalog_status['before_total'],
+        catalog_status['before_chapters'],
+        catalog_status['after_total'],
+        catalog_status['after_chapters'],
+        catalog_status['source'],
+    )
 
     if not settings.use_mock_provider:
         keys_present = any(

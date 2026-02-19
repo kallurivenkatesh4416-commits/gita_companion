@@ -9,6 +9,7 @@ from ..models import Verse
 from ..schemas import ChatResponse, ChatTurn, GuidanceMode, GuidanceResponse, LanguageCode
 from .guidance import extract_json
 from .language import language_instruction
+from .persona import wants_krishna_voice
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,16 @@ def _serialize_history(history: Sequence[ChatTurn]) -> list[dict[str, str]]:
     return [{"role": turn.role, "content": turn.content} for turn in history[-12:]]
 
 
-def _mode_style_instruction(mode: GuidanceMode) -> str:
+def _mode_style_instruction(
+    mode: GuidanceMode,
+    *,
+    prefer_krishna_voice: bool = False,
+) -> str:
+    if prefer_krishna_voice:
+        return (
+            "Voice: speak in first-person Krishna voice, serene and practical, "
+            "anchored in dharma and nishkama karma."
+        )
     if mode == "comfort":
         return "Style: warm, reassuring, and concise."
     if mode == "clarity":
@@ -144,12 +154,17 @@ class CodexChatProvider:
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
     ) -> ChatResponse:
+        prefer_krishna_voice = mode == "traditional" or wants_krishna_voice(
+            message,
+            [turn.content for turn in history if turn.role == "user"],
+        )
         prompt = self._build_prompt(
             message=message,
             mode=mode,
             language=language,
             history=history,
             verses=verses,
+            prefer_krishna_voice=prefer_krishna_voice,
         )
         try:
             response = httpx.post(
@@ -191,6 +206,7 @@ class CodexChatProvider:
         language: LanguageCode,
         history: Sequence[ChatTurn],
         verses: Sequence[Verse],
+        prefer_krishna_voice: bool,
     ) -> str:
         verses_payload = [
             {
@@ -224,7 +240,7 @@ class CodexChatProvider:
             "Keep tone practical, warm, concise. Return strict JSON only.\n"
             f"Schema: {json.dumps(schema)}\n"
             f"{language_instruction(language)}\n"
-            f"{_mode_style_instruction(mode)}\n"
+            f"{_mode_style_instruction(mode, prefer_krishna_voice=prefer_krishna_voice)}\n"
             f"Mode: {mode}\n"
             f"Conversation history: {json.dumps(_serialize_history(history), ensure_ascii=True)}\n"
             f"User message: {message}\n"
