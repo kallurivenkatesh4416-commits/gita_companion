@@ -9,6 +9,15 @@ class AppBottomNav extends StatelessWidget {
 
   const AppBottomNav({super.key, required this.currentIndex});
 
+  String _label({
+    required AppStrings strings,
+    required String key,
+    required String fallback,
+  }) {
+    final value = strings.t(key);
+    return value == key ? fallback : value;
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -30,10 +39,12 @@ class AppBottomNav extends StatelessWidget {
                 context, '/verses', (route) => false);
             break;
           case 2:
-            Navigator.pushNamed(context, '/chat');
+            Navigator.pushNamedAndRemoveUntil(
+                context, '/chat', (route) => false);
             break;
           case 3:
-            Navigator.pushNamed(context, '/settings');
+            Navigator.pushNamedAndRemoveUntil(
+                context, '/collections', (route) => false);
             break;
         }
       },
@@ -41,22 +52,38 @@ class AppBottomNav extends StatelessWidget {
         NavigationDestination(
           icon: const Icon(Icons.home_outlined),
           selectedIcon: const Icon(Icons.home_rounded),
-          label: strings.t('tab_home'),
+          label: _label(
+            strings: strings,
+            key: 'tab_today',
+            fallback: 'Today',
+          ),
         ),
         NavigationDestination(
           icon: const Icon(Icons.menu_book_outlined),
           selectedIcon: const Icon(Icons.menu_book_rounded),
-          label: strings.t('tab_verses'),
+          label: _label(
+            strings: strings,
+            key: 'tab_verses',
+            fallback: 'Verses',
+          ),
         ),
         NavigationDestination(
           icon: const Icon(Icons.chat_bubble_outline_rounded),
           selectedIcon: const Icon(Icons.chat_bubble_rounded),
-          label: strings.t('tab_chat'),
+          label: _label(
+            strings: strings,
+            key: 'tab_chat',
+            fallback: 'Chat',
+          ),
         ),
         NavigationDestination(
-          icon: const Icon(Icons.settings_outlined),
-          selectedIcon: const Icon(Icons.settings_rounded),
-          label: strings.t('tab_settings'),
+          icon: const Icon(Icons.collections_bookmark_outlined),
+          selectedIcon: const Icon(Icons.collections_bookmark_rounded),
+          label: _label(
+            strings: strings,
+            key: 'tab_library',
+            fallback: 'Library',
+          ),
         ),
       ],
     );

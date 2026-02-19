@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 
+import '../i18n/app_strings.dart';
 import '../models/models.dart';
+import '../state/app_state.dart';
 
 class VersePreviewCard extends StatelessWidget {
   final Verse verse;
   final VoidCallback? onTap;
   final VoidCallback? onShare;
   final String? shareTooltip;
+  final int translationMaxLines;
+  final bool showTransliteration;
+  final bool showTags;
 
   const VersePreviewCard({
     super.key,
@@ -15,11 +21,17 @@ class VersePreviewCard extends StatelessWidget {
     this.onTap,
     this.onShare,
     this.shareTooltip,
+    this.translationMaxLines = 4,
+    this.showTransliteration = true,
+    this.showTags = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final strings = AppStrings(appState.languageCode);
     final colorScheme = Theme.of(context).colorScheme;
+    final translation = verse.localizedTranslation(appState.languageCode);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -50,24 +62,30 @@ class VersePreviewCard extends StatelessWidget {
                 children: <Widget>[
                   Row(
                     children: <Widget>[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colorScheme.primary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          'Bhagavad Gita ${verse.ref}',
-                          style:
-                              Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    color: colorScheme.primary,
-                                  ),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${strings.t('bhagavad_gita')} ${verse.ref}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelLarge
+                                ?.copyWith(
+                                  color: colorScheme.primary,
+                                ),
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       if (onShare != null)
                         IconButton(
                           icon: Icon(
@@ -91,39 +109,43 @@ class VersePreviewCard extends StatelessWidget {
                   const SizedBox(height: 12),
                   // English translation — primary hierarchy
                   Text(
-                    verse.translation,
-                    maxLines: 4,
+                    translation,
+                    maxLines: translationMaxLines,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           height: 1.6,
                         ),
                   ),
-                  const SizedBox(height: 10),
-                  // Transliteration — smaller, italic, secondary hierarchy
-                  Text(
-                    verse.transliteration,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontStyle: FontStyle.italic,
-                          letterSpacing: 0.5,
-                          height: 1.4,
-                        ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: verse.tags
-                        .map(
-                          (tag) => Chip(
-                            label: Text(tag),
-                            visualDensity: VisualDensity.compact,
+                  if (showTransliteration) ...<Widget>[
+                    const SizedBox(height: 10),
+                    // Transliteration — smaller, italic, secondary hierarchy
+                    Text(
+                      verse.transliteration,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontStyle: FontStyle.italic,
+                            letterSpacing: 0.5,
+                            height: 1.4,
                           ),
-                        )
-                        .toList(growable: false),
-                  ),
+                    ),
+                  ],
+                  if (showTags) ...<Widget>[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: verse.tags
+                          .map(
+                            (tag) => Chip(
+                              label: Text(tag),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ],
                 ],
               ),
             ),

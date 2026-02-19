@@ -9,6 +9,7 @@ import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../services/voice_service.dart';
 import '../state/app_state.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/spiritual_background.dart';
 import '../widgets/verification_badge_panel.dart';
 import 'collections_screen.dart';
@@ -365,13 +366,15 @@ class _AskScreenState extends State<AskScreen> {
   }
 
   String _buildVerseContextTurn(Verse verse) {
+    final languageCode = context.read<AppState>().languageCode;
+    final translation = verse.localizedTranslation(languageCode);
     final transliteration = verse.transliteration.trim();
     final transliterationText =
         transliteration.isEmpty ? '' : ' Transliteration: $transliteration.';
 
     return 'Use Bhagavad Gita verse BG ${verse.ref} as attached context. '
         'Sanskrit: ${verse.sanskrit}. '
-        'Translation: ${verse.translation}.'
+        'Translation: $translation.'
         '$transliterationText';
   }
 
@@ -629,6 +632,10 @@ class _AskScreenState extends State<AskScreen> {
             ),
           ],
         ),
+      ),
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: AppBottomNav(currentIndex: 2),
       ),
     );
   }

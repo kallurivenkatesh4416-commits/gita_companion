@@ -8,11 +8,21 @@ import 'package:provider/provider.dart';
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/spiritual_background.dart';
 import '../widgets/verse_preview_card.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
+
+  String _label({
+    required AppStrings strings,
+    required String key,
+    required String fallback,
+  }) {
+    final value = strings.t(key);
+    return value == key ? fallback : value;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,20 +47,11 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'divine-chat-fab',
-        onPressed: () => Navigator.pushNamed(context, '/chat'),
-        icon: const Icon(Icons.auto_awesome),
-        label: Text(strings.t('divine_chat')),
-        backgroundColor: const Color(0xFFFFD8A8),
-        foregroundColor: const Color(0xFF4A2A14),
-      ),
       body: SpiritualBackground(
         child: RefreshIndicator(
           onRefresh: () => appState.refreshDailyVerse(),
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 104),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
             children: <Widget>[
               _HeaderPanel(
                 strings: strings,
@@ -69,6 +70,9 @@ class HomeScreen extends StatelessWidget {
               if (appState.dailyVerse != null)
                 VersePreviewCard(
                   verse: appState.dailyVerse!,
+                  translationMaxLines: 3,
+                  showTransliteration: false,
+                  showTags: false,
                   onTap: () => Navigator.pushNamed(
                     context,
                     '/verse',
@@ -103,145 +107,203 @@ class HomeScreen extends StatelessWidget {
                 child: FilledButton.icon(
                   onPressed: () => Navigator.pushNamed(context, '/ritual'),
                   icon: const Icon(Icons.self_improvement_outlined),
-                  label: Text(strings.t('start_today_60_sec')),
-                ),
-              ),
-              if (appState.ritualCompletedToday) ...<Widget>[
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .secondaryContainer
-                          .withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: Text(
-                      strings.t('done_today'),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSecondaryContainer,
-                          ),
-                    ),
+                  label: Text(
+                    strings.t('start_today_60_sec'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ],
-              const SizedBox(height: 10),
-              Text(
-                strings.t('daily_verse_update_note'),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
               ),
-              const SizedBox(height: 20),
-              _SectionTitle(
-                title: strings.t('morning_greeting'),
-                subtitle: strings.t('morning_greeting_subtitle'),
-                trailing: IconButton(
-                  tooltip: appState.morningGreeting == null
-                      ? strings.t('generate_morning_greeting')
-                      : strings.t('regenerate_morning_greeting'),
-                  onPressed: appState.morningGreetingLoading
-                      ? null
-                      : () => context
-                          .read<AppState>()
-                          .generateMorningGreeting(force: true),
-                  icon: appState.morningGreetingLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+              const SizedBox(height: 16),
+              Card(
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: Colors.transparent,
+                  ),
+                  child: ExpansionTile(
+                    initiallyExpanded: false,
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    title: Text(
+                      _label(
+                        strings: strings,
+                        key: 'more_for_today',
+                        fallback: 'More for today',
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      strings.t('companion_tools_subtitle'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    children: <Widget>[
+                      if (appState.ritualCompletedToday) ...<Widget>[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .secondaryContainer
+                                  .withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: Text(
+                              strings.t('done_today'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSecondaryContainer,
+                                  ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                      Text(
+                        strings.t('daily_verse_update_note'),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 18),
+                      _SectionTitle(
+                        title: strings.t('morning_greeting'),
+                        subtitle: strings.t('morning_greeting_subtitle'),
+                        trailing: IconButton(
+                          tooltip: appState.morningGreeting == null
+                              ? strings.t('generate_morning_greeting')
+                              : strings.t('regenerate_morning_greeting'),
+                          onPressed: appState.morningGreetingLoading
+                              ? null
+                              : () => context
+                                  .read<AppState>()
+                                  .generateMorningGreeting(force: true),
+                          icon: appState.morningGreetingLoading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (appState.morningGreeting != null)
+                        _MorningGreetingCard(
+                          greeting: appState.morningGreeting!,
+                          strings: strings,
+                          onVerseTap: appState.dailyVerse == null
+                              ? null
+                              : () => Navigator.pushNamed(
+                                    context,
+                                    '/verse',
+                                    arguments: appState.dailyVerse,
+                                  ),
                         )
-                      : const Icon(Icons.refresh_rounded),
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (appState.morningGreeting != null)
-                _MorningGreetingCard(
-                  greeting: appState.morningGreeting!,
-                  strings: strings,
-                  onVerseTap: appState.dailyVerse == null
-                      ? null
-                      : () => Navigator.pushNamed(
-                            context,
-                            '/verse',
-                            arguments: appState.dailyVerse,
+                      else
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              strings.t('morning_greeting_empty'),
+                            ),
                           ),
-                )
-              else
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(strings.t('morning_greeting_empty')),
+                        ),
+                      const SizedBox(height: 20),
+                      _SectionTitle(
+                        title: strings.t('companion_tools'),
+                        subtitle: strings.t('companion_tools_subtitle'),
+                      ),
+                      const SizedBox(height: 10),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final crossAxisCount =
+                              constraints.maxWidth >= 760 ? 3 : 2;
+                          return GridView.count(
+                            shrinkWrap: true,
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 1.05,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: <Widget>[
+                              _GlassTile(
+                                icon: Icons.spa_outlined,
+                                iconColor: const Color(0xFF4B5D43), // Sage green
+                                title: strings.t('check_in'),
+                                subtitle: strings.t('check_in_subtitle'),
+                                onTap: () => Navigator.pushNamed(context, '/mood'),
+                              ),
+                              _GlassTile(
+                                icon: Icons.menu_book_outlined,
+                                iconColor: const Color(0xFF8E4A2F), // Terracotta
+                                title: strings.t('chapters'),
+                                subtitle: strings.t('chapters_card_subtitle'),
+                                onTap: () => Navigator.pushNamed(context, '/chapters'),
+                              ),
+                              _GlassTile(
+                                icon: Icons.favorite_outline,
+                                iconColor: const Color(0xFFFF9933), // Saffron gold
+                                title: strings.t('favorites'),
+                                subtitle: strings.t('favorites_subtitle'),
+                                onTap: () => Navigator.pushNamed(context, '/favorites'),
+                              ),
+                              _GlassTile(
+                                icon: Icons.menu_book_rounded,
+                                iconColor: const Color(0xFF4A2A14), // Deep brown
+                                title: strings.t('journal'),
+                                subtitle: strings.t('journal_subtitle'),
+                                onTap: () => Navigator.pushNamed(context, '/journal'),
+                              ),
+                              _GlassTile(
+                                icon: Icons.collections_bookmark_outlined,
+                                iconColor: const Color(0xFF6B4E3D), // Warm brown
+                                title: strings.t('collections'),
+                                subtitle: strings.t('collections_subtitle'),
+                                onTap: () => Navigator.pushNamed(context, '/collections'),
+                              ),
+                              _GlassTile(
+                                icon: Icons.route_outlined,
+                                iconColor: const Color(0xFF4B5D43), // Sage green
+                                title: strings.t('journeys'),
+                                subtitle: strings.t('journeys_subtitle'),
+                                onTap: () => Navigator.pushNamed(context, '/journeys'),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ),
-              const SizedBox(height: 20),
-              _SectionTitle(
-                title: strings.t('companion_tools'),
-                subtitle: strings.t('companion_tools_subtitle'),
-              ),
-              const SizedBox(height: 10),
-              GridView.count(
-                shrinkWrap: true,
-                crossAxisCount:
-                    MediaQuery.of(context).size.width >= 760 ? 4 : 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.05,
-                physics: const NeverScrollableScrollPhysics(),
-                children: <Widget>[
-                  _GlassTile(
-                    icon: Icons.spa_outlined,
-                    iconColor: const Color(0xFF4B5D43), // Sage green
-                    title: strings.t('check_in'),
-                    subtitle: strings.t('check_in_subtitle'),
-                    onTap: () => Navigator.pushNamed(context, '/mood'),
-                  ),
-                  _GlassTile(
-                    icon: Icons.menu_book_outlined,
-                    iconColor: const Color(0xFF8E4A2F), // Terracotta
-                    title: strings.t('chapters'),
-                    subtitle: strings.t('chapters_card_subtitle'),
-                    onTap: () => Navigator.pushNamed(context, '/chapters'),
-                  ),
-                  _GlassTile(
-                    icon: Icons.favorite_outline,
-                    iconColor: const Color(0xFFFF9933), // Saffron gold
-                    title: strings.t('favorites'),
-                    subtitle: strings.t('favorites_subtitle'),
-                    onTap: () => Navigator.pushNamed(context, '/favorites'),
-                  ),
-                  _GlassTile(
-                    icon: Icons.menu_book_rounded,
-                    iconColor: const Color(0xFF4A2A14), // Deep brown
-                    title: strings.t('journal'),
-                    subtitle: strings.t('journal_subtitle'),
-                    onTap: () => Navigator.pushNamed(context, '/journal'),
-                  ),
-                  _GlassTile(
-                    icon: Icons.collections_bookmark_outlined,
-                    iconColor: const Color(0xFF6B4E3D), // Warm brown
-                    title: strings.t('collections'),
-                    subtitle: strings.t('collections_subtitle'),
-                    onTap: () => Navigator.pushNamed(context, '/collections'),
-                  ),
-                  _GlassTile(
-                    icon: Icons.route_outlined,
-                    iconColor: const Color(0xFF4B5D43), // Sage green
-                    title: strings.t('journeys'),
-                    subtitle: strings.t('journeys_subtitle'),
-                    onTap: () => Navigator.pushNamed(context, '/journeys'),
-                  ),
-                ],
               ),
             ],
           ),
         ),
+      ),
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: AppBottomNav(currentIndex: 0),
       ),
     );
   }
@@ -503,6 +565,8 @@ class _GlassTileState extends State<_GlassTile>
                   const Spacer(),
                   Text(
                     widget.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
@@ -593,7 +657,8 @@ class _MorningGreetingCardState extends State<_MorningGreetingCard> {
                 runSpacing: 8,
                 children: <Widget>[
                   ActionChip(
-                    label: Text('Bhagavad Gita ${greeting.verse.ref}'),
+                    label:
+                        Text('${strings.t('bhagavad_gita')} ${greeting.verse.ref}'),
                     onPressed: widget.onVerseTap,
                   ),
                 ],

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../widgets/app_bottom_nav.dart';
 import '../widgets/spiritual_background.dart';
 
 class CollectionsScreen extends StatelessWidget {
@@ -37,7 +38,7 @@ class CollectionsScreen extends StatelessWidget {
                       leading: const Icon(Icons.collections_bookmark_rounded),
                       title: Text(collection.name),
                       subtitle: Text(
-                        '${collection.items.length} item${collection.items.length == 1 ? '' : 's'}',
+                        _itemCountLabel(collection.items.length, strings),
                       ),
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) {
@@ -73,6 +74,10 @@ class CollectionsScreen extends StatelessWidget {
                   );
                 },
               ),
+      ),
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: AppBottomNav(currentIndex: 3),
       ),
     );
   }
@@ -182,7 +187,7 @@ class _CollectionDetailScreen extends StatelessWidget {
     if (collection == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(child: Text('Collection not found')),
+        body: Center(child: Text(strings.t('collection_not_found'))),
       );
     }
 
@@ -308,7 +313,7 @@ class _BookmarkItemCard extends StatelessWidget {
               if (!isVerse && item.question != null) ...<Widget>[
                 const SizedBox(height: 6),
                 Text(
-                  'Q: ${item.question}',
+                  '${strings.t('question_prefix')}: ${item.question}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),
@@ -387,7 +392,7 @@ class _AddToCollectionSheet extends StatelessWidget {
                 leading: const Icon(Icons.collections_bookmark_rounded),
                 title: Text(collection.name),
                 subtitle: Text(
-                  '${collection.items.length} item${collection.items.length == 1 ? '' : 's'}',
+                  _itemCountLabel(collection.items.length, strings),
                 ),
                 onTap: () {
                   appState.addItemToCollection(collection.id, item);
@@ -482,4 +487,9 @@ class _AddToCollectionSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+String _itemCountLabel(int count, AppStrings strings) {
+  final key = count == 1 ? 'item_singular' : 'item_plural';
+  return '$count ${strings.t(key)}';
 }
