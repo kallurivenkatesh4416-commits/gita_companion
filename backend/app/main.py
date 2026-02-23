@@ -6,10 +6,14 @@ import hashlib
 from datetime import date
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, Security, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.security.api_key import APIKeyHeader
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -49,6 +53,42 @@ settings = get_settings()
 configure_logging()
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Rate limiter (slowapi) — keyed per remote IP
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+
+# ---------------------------------------------------------------------------
+# Optional API-key authentication
+# ---------------------------------------------------------------------------
+_API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+_PUBLIC_PATHS = frozenset({"/health", "/api/model-status"})
+
+
+async def _verify_api_key(
+    request: Request,
+    key: str | None = Security(_API_KEY_HEADER),
+) -> None:
+    """Enforce X-API-Key when CLIENT_API_KEY is configured in settings.
+
+    - Skipped entirely when CLIENT_API_KEY is empty (local dev mode).
+    - Also skipped for health / status endpoints so monitoring tools never need a key.
+    """
+    if request.url.path in _PUBLIC_PATHS:
+        return  # monitoring endpoints are always public
+
+    required = settings.client_api_key
+    if not required:
+        return  # auth disabled in dev
+    if not key or key != required:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing API key",
+        )
+
+
 def _cors_allow_origins() -> list[str]:
     # Production: lock to a single domain
     if settings.production_domain:
@@ -77,7 +117,15 @@ def _cors_allow_origins() -> list[str]:
 
 
 
-app = FastAPI(title=settings.app_name, version='0.1.0')
+app = FastAPI(
+    title=settings.app_name,
+    version='0.1.0',
+    # Apply API-key auth to every route by default.
+    # /health is exempt (see its own decorator).
+    dependencies=[Depends(_verify_api_key)],
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_allow_origins(),
@@ -89,6 +137,10 @@ if not settings.production_domain:
     logger.warning("PRODUCTION_DOMAIN is not set; CORS is restricted to local dev origins only.")
 else:
     logger.info("CORS allow_origins=%s", _cors_allow_origins())
+if settings.client_api_key:
+    logger.info("API key authentication: ENABLED")
+else:
+    logger.warning("API key authentication: DISABLED (set CLIENT_API_KEY to enable)")
 
 cache = TTLCache(ttl_seconds=settings.cache_ttl_seconds)
 embedding_provider = create_embedding_provider(
@@ -288,7 +340,7 @@ def on_startup() -> None:
 
 
 
-@app.get('/health')
+@app.get('/health')  # always public — _verify_api_key skips _PUBLIC_PATHS
 def health() -> dict[str, Any]:
     registered = sorted(orchestrator.model_status().keys())
     default_llm = settings.default_llm if settings.default_llm in registered else 'mock'
@@ -352,25 +404,26 @@ def moods() -> MoodOptionsResponse:
 
 
 @app.post('/moods/guidance', response_model=GuidanceResponse)
-def mood_guidance(request: MoodGuidanceRequest) -> GuidanceResponse:
-    topic_parts = [', '.join(request.moods)]
-    if request.note:
-        topic_parts.append(request.note)
+@limiter.limit(settings.rate_limit_mood)
+def mood_guidance(request: Request, body: MoodGuidanceRequest) -> GuidanceResponse:
+    topic_parts = [', '.join(body.moods)]
+    if body.note:
+        topic_parts.append(body.note)
     topic = ' | '.join(topic_parts)
 
-    cache_key = f'mood:{request.mode}:{request.language}:{topic.strip().lower()}'
+    cache_key = f'mood:{body.mode}:{body.language}:{topic.strip().lower()}'
     cached = cache.get(cache_key)
     if isinstance(cached, GuidanceResponse):
         return cached
 
-    verses = retriever.retrieve(query=topic, top_k=3)
+    verses = retriever.retrieve(query=topic, top_k=settings.retrieval_top_k)
     if not verses:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No verses found')
 
     result, _model = orchestrator.generate_guidance(
         topic=topic,
-        mode=request.mode,
-        language=request.language,
+        mode=body.mode,
+        language=body.language,
         verses=verses,
     )
     verification = verify_answer(
@@ -391,21 +444,22 @@ def mood_guidance(request: MoodGuidanceRequest) -> GuidanceResponse:
 
 
 @app.post('/ask', response_model=GuidanceResponse)
-def ask(request: AskRequest) -> GuidanceResponse:
-    topic = request.question.strip()
-    cache_key = f'ask:{request.mode}:{request.language}:{topic.lower()}'
+@limiter.limit(settings.rate_limit_ask)
+def ask(request: Request, body: AskRequest) -> GuidanceResponse:
+    topic = body.question.strip()
+    cache_key = f'ask:{body.mode}:{body.language}:{topic.lower()}'
     cached = cache.get(cache_key)
     if isinstance(cached, GuidanceResponse):
         return cached
 
-    verses = retriever.retrieve(query=topic, top_k=3)
+    verses = retriever.retrieve(query=topic, top_k=settings.retrieval_top_k)
     if not verses:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No verses found')
 
     result, _model = orchestrator.generate_guidance(
         topic=topic,
-        mode=request.mode,
-        language=request.language,
+        mode=body.mode,
+        language=body.language,
         verses=verses,
     )
     verification = verify_answer(
@@ -448,7 +502,7 @@ def _build_verified_chat_response(request: ChatRequest) -> ChatResponse:
     recent_user_turns = [turn.content for turn in request.history[-6:] if turn.role == 'user']
     retrieval_query = ' '.join(recent_user_turns + [message])
 
-    verses = retriever.retrieve(query=retrieval_query, top_k=3)
+    verses = retriever.retrieve(query=retrieval_query, top_k=get_settings().retrieval_top_k)
     if not verses:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No verses found')
 
@@ -506,26 +560,28 @@ def _sse_event(event: str, payload: dict[str, Any]) -> str:
 
 
 @app.post('/chat', response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
-    return _build_verified_chat_response(request)
+@limiter.limit(settings.rate_limit_chat)
+def chat(request: Request, body: ChatRequest) -> ChatResponse:
+    return _build_verified_chat_response(body)
 
 
 @app.post('/chat/stream')
-async def chat_stream(request: ChatRequest, raw_request: Request) -> StreamingResponse:
+@limiter.limit(settings.rate_limit_chat)
+async def chat_stream(request: Request, body: ChatRequest) -> StreamingResponse:
     async def event_generator():
         try:
-            result = await run_in_threadpool(_build_verified_chat_response, request)
+            result = await run_in_threadpool(_build_verified_chat_response, body)
             for chunk in _iter_reply_chunks(result.reply):
-                if await raw_request.is_disconnected():
+                if await request.is_disconnected():
                     return
                 yield _sse_event('token', {'token': chunk})
                 await asyncio.sleep(0.02)
 
-            if await raw_request.is_disconnected():
+            if await request.is_disconnected():
                 return
             yield _sse_event('done', result.model_dump(mode='json'))
         except HTTPException as exc:
-            if await raw_request.is_disconnected():
+            if await request.is_disconnected():
                 return
             yield _sse_event(
                 'error',
@@ -536,7 +592,7 @@ async def chat_stream(request: ChatRequest, raw_request: Request) -> StreamingRe
             )
         except Exception:
             logger.exception('chat_stream_failed')
-            if await raw_request.is_disconnected():
+            if await request.is_disconnected():
                 return
             yield _sse_event('error', {'message': 'Streaming failed'})
 
@@ -665,6 +721,10 @@ def delete_favorite(verse_id: int, db: Session = Depends(get_db)) -> Response:
 
 @app.get('/journeys', response_model=list[JourneyOut])
 def journeys() -> list[JourneyOut]:
+    if not settings.feature_journeys_enabled:
+        # Feature not yet implemented — return empty list rather than shipping
+        # hardcoded stub data that will never update.
+        return []
     return [
         JourneyOut(
             id='starter-3-day',

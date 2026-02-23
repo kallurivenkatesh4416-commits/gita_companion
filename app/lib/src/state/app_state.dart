@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// ignore_for_file: avoid_print
 
 import '../data/journey_catalog.dart';
 import '../errors/app_error_mapper.dart';
@@ -36,6 +39,7 @@ class AppState extends ChangeNotifier {
       'verse_notification_custom_hour';
   static const _prefVerseNotificationCustomMinute =
       'verse_notification_custom_minute';
+  static const _prefOfflineMode = 'offline_mode';
 
   static const notificationWindowMorning = 'morning';
   static const notificationWindowEvening = 'evening';
@@ -46,6 +50,10 @@ class AppState extends ChangeNotifier {
   static const _morningWindowMinute = 30;
   static const _eveningWindowHour = 19;
   static const _eveningWindowMinute = 0;
+
+  static const _secure = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
 
   final GitaRepository repository;
   final VerseNotificationService _verseNotificationService =
@@ -66,6 +74,7 @@ class AppState extends ChangeNotifier {
   int verseNotificationCustomHour = _defaultNotificationHour;
   int verseNotificationCustomMinute = _defaultNotificationMinute;
   bool offlineMode = false;
+  int _connectivityFailStreak = 0;
 
   bool loading = false;
   bool _favoritesLoading = false;
@@ -131,11 +140,13 @@ class AppState extends ChangeNotifier {
     loading = true;
     notifyListeners();
 
+    // ── Phase 1: Load all persisted (local) data synchronously ──────────────
+    // This is fast (disk only) and lets us paint the first frame immediately.
     final prefs = await SharedPreferences.getInstance();
     onboardingComplete = prefs.getBool(_prefOnboardingComplete) ?? false;
     anonymousMode = prefs.getBool(_prefAnonymousMode) ?? true;
     privacyAnonymous = prefs.getBool(_prefPrivacyAnonymous) ?? anonymousMode;
-    email = prefs.getString(_prefEmail);
+    email = await _secure.read(key: _prefEmail);
     guidanceMode =
         guidanceModeFromCode(prefs.getString(_prefGuidanceMode) ?? 'comfort');
     final languageCandidate = prefs.getString(_prefLanguageCode) ?? 'en';
@@ -155,22 +166,33 @@ class AppState extends ChangeNotifier {
       prefs.getInt(_prefVerseNotificationCustomMinute) ??
           _defaultNotificationMinute,
     );
-    chatHistory = _decodeChatHistory(prefs.getString(_prefChatHistory));
+    // Restore persisted offline mode so the UI is consistent after a crash.
+    offlineMode = prefs.getBool(_prefOfflineMode) ?? false;
+    chatHistory = _decodeChatHistory(await _secure.read(key: _prefChatHistory));
     morningGreeting =
-        _decodeMorningGreeting(prefs.getString(_prefMorningGreeting));
+        _decodeMorningGreeting(await _secure.read(key: _prefMorningGreeting));
     ritualLastCompletedDate = prefs.getString(_prefRitualLastCompletedDate);
     ritualReflections =
-        _decodeStringList(prefs.getString(_prefRitualReflections));
+        _decodeStringList(await _secure.read(key: _prefRitualReflections));
     journalEntries =
-        _decodeJournalEntries(prefs.getString(_prefJournalEntries));
+        _decodeJournalEntries(await _secure.read(key: _prefJournalEntries));
     bookmarkCollections =
-        _decodeBookmarkCollections(prefs.getString(_prefBookmarkCollections));
+        _decodeBookmarkCollections(await _secure.read(key: _prefBookmarkCollections));
     _journeyProgressById
       ..clear()
       ..addAll(_decodeJourneyProgress(prefs.getString(_prefJourneyProgress)));
     await _migrateLegacyRitualReflectionsIfNeeded();
     await _verseNotificationService.initialize();
 
+    // ── Phase 2: Paint first frame ───────────────────────────────────────────
+    // The home screen renders immediately with persisted data (or empty states
+    // with skeleton loaders). Network fetches run concurrently below.
+    loading = false;
+    initialized = true;
+    notifyListeners();
+
+    // ── Phase 3: Background network fetches (non-blocking) ──────────────────
+    // refreshJourneys is local-only so it finishes instantly.
     await Future.wait(<Future<void>>[
       refreshDailyVerse(),
       refreshMoodOptions(),
@@ -179,15 +201,6 @@ class AppState extends ChangeNotifier {
       refreshChapters(),
     ]);
 
-    // Retry once after initial warm-up to reduce startup race failures.
-    if (dailyVerse == null) {
-      await Future<void>.delayed(const Duration(milliseconds: 750));
-      await refreshDailyVerse();
-    }
-
-    loading = false;
-    initialized = true;
-    notifyListeners();
     await _syncVerseNotifications();
     unawaited(_autoGenerateMorningGreetingIfNeeded());
   }
@@ -198,6 +211,7 @@ class AppState extends ChangeNotifier {
       dailyVerseError = null;
       offlineMode = repository.lastRequestUsedOfflineData &&
           repository.lastRequestOfflineFallbackFromConnectivity;
+      if (!offlineMode) _connectivityFailStreak = 0;
     } catch (error, stackTrace) {
       dailyVerseError = _friendlyError(
         error,
@@ -214,7 +228,9 @@ class AppState extends ChangeNotifier {
     try {
       moodOptions = await repository.getMoodOptions();
       moodOptionsError = null;
+      if (offlineMode) unawaited(_persistOfflineMode(false));
       offlineMode = false;
+      _connectivityFailStreak = 0;
     } catch (error, stackTrace) {
       moodOptions = const <String>[];
       moodOptionsError = _friendlyError(
@@ -234,7 +250,9 @@ class AppState extends ChangeNotifier {
     try {
       favorites = await repository.getFavorites();
       favoritesError = null;
+      if (offlineMode) unawaited(_persistOfflineMode(false));
       offlineMode = false;
+      _connectivityFailStreak = 0;
     } catch (error, stackTrace) {
       favorites = const <FavoriteItem>[];
       favoritesError = _friendlyError(
@@ -323,6 +341,7 @@ class AppState extends ChangeNotifier {
       chaptersError = null;
       offlineMode = repository.lastRequestUsedOfflineData &&
           repository.lastRequestOfflineFallbackFromConnectivity;
+      if (!offlineMode) _connectivityFailStreak = 0;
     } catch (error, stackTrace) {
       if (chapters.isEmpty) {
         chaptersError = _friendlyError(
@@ -369,6 +388,7 @@ class AppState extends ChangeNotifier {
       );
       offlineMode = repository.lastRequestUsedOfflineData &&
           repository.lastRequestOfflineFallbackFromConnectivity;
+      if (!offlineMode) _connectivityFailStreak = 0;
     } catch (error, stackTrace) {
       chapterVersesErrors[chapter] = _friendlyError(
         error,
@@ -432,7 +452,9 @@ class AppState extends ChangeNotifier {
         language: languageCode,
       );
       await _persistMorningGreeting(morningGreeting!);
+      if (offlineMode) unawaited(_persistOfflineMode(false));
       offlineMode = false;
+      _connectivityFailStreak = 0;
       if (!suppressErrors) {
         morningGreetingError = null;
       }
@@ -443,6 +465,12 @@ class AppState extends ChangeNotifier {
           error,
           stackTrace,
           context: 'generateMorningGreeting',
+        );
+      } else {
+        // Errors are suppressed for auto-generate (background path) to avoid
+        // disrupting the home screen, but we log them for debugging.
+        debugPrint(
+          'AppState.generateMorningGreeting (suppressed): $error\n$stackTrace',
         );
       }
     } finally {
@@ -461,7 +489,7 @@ class AppState extends ChangeNotifier {
     await prefs.setBool(_prefOnboardingComplete, true);
     await prefs.setBool(_prefAnonymousMode, true);
     await prefs.setBool(_prefPrivacyAnonymous, true);
-    await prefs.remove(_prefEmail);
+    await _secure.delete(key: _prefEmail);
 
     notifyListeners();
   }
@@ -478,7 +506,7 @@ class AppState extends ChangeNotifier {
     await prefs.setBool(_prefOnboardingComplete, true);
     await prefs.setBool(_prefAnonymousMode, false);
     await prefs.setBool(_prefPrivacyAnonymous, false);
-    await prefs.setString(_prefEmail, trimmed);
+    await _secure.write(key: _prefEmail, value: trimmed);
 
     notifyListeners();
   }
@@ -567,7 +595,7 @@ class AppState extends ChangeNotifier {
     morningGreeting = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefGuidanceMode, guidanceMode);
-    await prefs.remove(_prefMorningGreeting);
+    await _secure.delete(key: _prefMorningGreeting);
     await prefs.remove(_prefMorningGreetingLocalDate);
     await generateMorningGreeting(force: true, suppressErrors: true);
     notifyListeners();
@@ -578,7 +606,7 @@ class AppState extends ChangeNotifier {
     morningGreeting = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefLanguageCode, languageCode);
-    await prefs.remove(_prefMorningGreeting);
+    await _secure.delete(key: _prefMorningGreeting);
     await prefs.remove(_prefMorningGreetingLocalDate);
     await generateMorningGreeting(force: true, suppressErrors: true);
     await _syncVerseNotifications();
@@ -644,8 +672,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> clearChatHistory() async {
     chatHistory = const <ChatHistoryEntry>[];
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefChatHistory);
+    await _secure.delete(key: _prefChatHistory);
     notifyListeners();
   }
 
@@ -691,8 +718,8 @@ class AppState extends ChangeNotifier {
     if (text != null && text.isNotEmpty) {
       final updated = <String>[text, ...ritualReflections];
       ritualReflections = updated.take(30).toList(growable: false);
-      await prefs.setString(
-          _prefRitualReflections, jsonEncode(ritualReflections));
+      await _secure.write(
+          key: _prefRitualReflections, value: jsonEncode(ritualReflections));
       await addJournalEntry(
         text: text,
         moodTag: moodTag,
@@ -779,11 +806,10 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _persistBookmarkCollections() async {
-    final prefs = await SharedPreferences.getInstance();
     final payload = bookmarkCollections
         .map((c) => c.toJson())
         .toList(growable: false);
-    await prefs.setString(_prefBookmarkCollections, jsonEncode(payload));
+    await _secure.write(key: _prefBookmarkCollections, value: jsonEncode(payload));
   }
 
   List<BookmarkCollection> _decodeBookmarkCollections(String? raw) {
@@ -808,25 +834,21 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_prefOnboardingComplete);
     await prefs.remove(_prefAnonymousMode);
-    await prefs.remove(_prefEmail);
     await prefs.remove(_prefGuidanceMode);
     await prefs.remove(_prefPrivacyAnonymous);
     await prefs.remove(_prefLanguageCode);
     await prefs.remove(_prefVoiceInputEnabled);
     await prefs.remove(_prefVoiceOutputEnabled);
-    await prefs.remove(_prefChatHistory);
-    await prefs.remove(_prefMorningGreeting);
     await prefs.remove(_prefMorningGreetingLocalDate);
     await prefs.remove(_prefRitualLastCompletedDate);
-    await prefs.remove(_prefRitualReflections);
-    await prefs.remove(_prefJournalEntries);
-    await prefs.remove(_prefBookmarkCollections);
     await prefs.remove(_prefJourneyProgress);
     await prefs.remove(_prefVerseNotificationsEnabled);
     await prefs.remove(_prefVerseNotificationsPaused);
     await prefs.remove(_prefVerseNotificationWindow);
     await prefs.remove(_prefVerseNotificationCustomHour);
     await prefs.remove(_prefVerseNotificationCustomMinute);
+
+    await _secure.deleteAll();
 
     onboardingComplete = false;
     anonymousMode = true;
@@ -842,6 +864,8 @@ class AppState extends ChangeNotifier {
     verseNotificationCustomHour = _defaultNotificationHour;
     verseNotificationCustomMinute = _defaultNotificationMinute;
     offlineMode = false;
+    _connectivityFailStreak = 0;
+    unawaited(_persistOfflineMode(false));
     chatHistory = const <ChatHistoryEntry>[];
     morningGreeting = null;
     morningGreetingLoading = false;
@@ -893,17 +917,15 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _persistChatHistory() async {
-    final prefs = await SharedPreferences.getInstance();
     final payload =
         chatHistory.map((entry) => entry.toJson()).toList(growable: false);
-    await prefs.setString(_prefChatHistory, jsonEncode(payload));
+    await _secure.write(key: _prefChatHistory, value: jsonEncode(payload));
   }
 
   Future<void> _persistJournalEntries() async {
-    final prefs = await SharedPreferences.getInstance();
     final payload =
         journalEntries.map((entry) => entry.toJson()).toList(growable: false);
-    await prefs.setString(_prefJournalEntries, jsonEncode(payload));
+    await _secure.write(key: _prefJournalEntries, value: jsonEncode(payload));
   }
 
   Future<void> _persistJourneyProgress() async {
@@ -931,7 +953,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _persistMorningGreeting(MorningGreeting greeting) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefMorningGreeting, jsonEncode(greeting.toJson()));
+    await _secure.write(key: _prefMorningGreeting, value: jsonEncode(greeting.toJson()));
     await prefs.setString(_prefMorningGreetingLocalDate, _todayKey());
   }
 
@@ -1185,7 +1207,17 @@ class AppState extends ChangeNotifier {
 
   void _markOfflineFromError(Object error) {
     if (AppErrorMapper.isConnectivityIssue(error)) {
-      offlineMode = true;
+      _connectivityFailStreak += 1;
+      final nowOffline = (_connectivityFailStreak >= 2);
+      if (nowOffline != offlineMode) {
+        offlineMode = nowOffline;
+        unawaited(_persistOfflineMode(offlineMode));
+      }
     }
+  }
+
+  Future<void> _persistOfflineMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefOfflineMode, value);
   }
 }

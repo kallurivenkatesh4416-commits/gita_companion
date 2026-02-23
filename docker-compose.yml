@@ -3,15 +3,18 @@
     image: pgvector/pgvector:pg16
     container_name: gita_companion_postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: gita_companion
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # POSTGRES_PASSWORD MUST be set in your shell environment or a local .env file.
+      # Never use the default 'postgres' password in staging or production.
+      # Generate one: python -c "import secrets; print(secrets.token_urlsafe(32))"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-gita_companion}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d gita_companion"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-gita_companion}"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -23,7 +26,8 @@
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/gita_companion
+      # DATABASE_URL is built from POSTGRES_* vars so passwords aren't duplicated.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-gita_companion}
       PYTHONUNBUFFERED: "1"
     depends_on:
       postgres:

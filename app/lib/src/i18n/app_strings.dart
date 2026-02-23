@@ -128,7 +128,7 @@ const Map<String, String> _enValues = <String, String>{
       'Showing cached or bundled chapter data while offline.',
   'offline_chat_notice':
       'You are offline. You can read past chats, but sending new AI messages needs internet.',
-  'morning_greeting': 'Morning AI Greeting',
+  'morning_greeting': 'Message from Krishna',
   'morning_greeting_subtitle':
       'Generate an AI-crafted shloka greeting with meaning and theme',
   'morning_greeting_empty':
@@ -360,7 +360,6 @@ const Map<String, String> _enValues = <String, String>{
   'verses_sync_incomplete_server_keep_offline':
       'Sync incomplete; continue in offline mode.',
   'verse_sync_count': 'Verses synced so far',
-  'verses_sync': 'Verses sync',
   'item_singular': 'item',
   'item_plural': 'items',
   'question_prefix': 'Q',
@@ -461,6 +460,165 @@ const Map<String, Map<String, String>> _values = <String, Map<String, String>>{
     'added_to_collection': 'Sangraha mein jodha gaya',
     'create': 'Banayein',
     'cancel': 'Radd karein',
+    'answer_bookmark': 'AI Uttar',
+    'ask_about_this_verse': 'Is shlok ke baare mein poochhen',
+    'ask_verse_prefill': 'Mujhe samajhne mein madad karein',
+    'audio_placeholder_subtitle':
+        'Audio playback integration ko agle milestone mein joda ja sakta hai.',
+    'audio_placeholder_title': 'Audio (placeholder)',
+    'background_theme': 'Theme',
+    'chapter': 'Adhyay',
+    'chapter_has_no_verses': 'Is adhyay ke liye abhi koi shlok uplabdh nahin hai.',
+    'chapters': 'Adhyay',
+    'chapters_card_subtitle': 'Adhyay-anusar shlok browsing',
+    'chapters_subtitle': 'Saare 18 adhyay sankshipt saar ke saath dekhein.',
+    'chatbot': 'Chatbot',
+    'chatbot_subtitle': 'Shlok-aadharit margdarshan ke saath baatcheet',
+    'check_in_subtitle': 'Mood + ek minute ka reset',
+    'collection_items_empty':
+        'Abhi koi item nahin. Is sangraha mein shlok ya uttar save karein.',
+    'collection_name_hint': 'jaise Morning, Mushkil samay',
+    'collections_subtitle': 'Naam wale bookmark sangrah',
+    'email_hint': 'name@example.com',
+    'empty_state_hint_favorites':
+        'Yahaan rakhne ke liye verse detail screen se shlok save karein.',
+    'error_auth': 'Aapke session ko dhyan chahiye. Kripya phir se sign in karein.',
+    'error_generic': 'Kuch galat ho gaya. Kripya phir se koshish karein.',
+    'error_network_timeout':
+        'Connection timeout ho gaya. Kripya saans lein aur phir koshish karein.',
+    'error_network_unavailable':
+        'Service tak pahunch nahin ho paayi. Kripya connection check karke phir koshish karein.',
+    'error_request':
+        'Yeh request poori nahin ho paayi. Kripya dekhkar phir koshish karein.',
+    'error_server':
+        'Service abhi uplabdh nahin hai. Kripya thodi der baad phir koshish karein.',
+    'error_try_again_short':
+        'Main abhi jawab nahin de paaya. Kripya saans lein aur phir koshish karein.',
+    'favorites_subtitle': 'Dobara dekhne ke liye save kiye gaye shlok',
+    'friendly_auth_error':
+        'Sign-in mein samasya hai. Kripya refresh karke phir koshish karein.',
+    'friendly_general_error':
+        'Ek anapekshit samasya hui. Kripya thodi der mein phir koshish karein.',
+    'friendly_mood_no_verse':
+        'Koi shlok na milne ke kaaran mood guidance uplabdh nahin hai.',
+    'friendly_network_error':
+        'Server tak pahunch nahin ho paayi. Connection check karke retry karein.',
+    'friendly_network_timeout':
+        'Request timeout ho gayi. Kripya stable connection se phir koshish karein.',
+    'friendly_server_error':
+        'Service expected se zyada samay le rahi hai. Kripya thodi der baad phir koshish karein.',
+    'friendly_verses_load_error':
+        'Abhi shlok load nahin ho paaye. Kripya phir koshish karein.',
+    'journal': 'Journal',
+    'journal_empty':
+        'Abhi koi journal entries nahin hain. Ritual ki reflections yahaan dikhenge.',
+    'journal_export': 'JSON export karein',
+    'journal_export_done': 'Journal export ho gaya',
+    'journal_export_empty': 'Export ke liye koi journal entries nahin hain.',
+    'journal_export_unavailable': 'Is platform par export file uplabdh nahin hai.',
+    'journal_filter_all_verses': 'Saare shlok',
+    'journal_filter_verse': 'Shlok se filter',
+    'journal_linked_verse': 'Shlok',
+    'journal_mood': 'Mood',
+    'journal_search_hint': 'Entries search karein',
+    'journal_subtitle': 'Chintan diary',
+    'journal_title': 'Chintan Journal',
+    'journey_commentary': 'Tippani',
+    'journey_complete_message':
+        'Yeh path poora ho chuka hai. Aap kabhi bhi kisi din ko dobara dekh sakte hain.',
+    'journey_day': 'Din',
+    'journey_done': 'Poora',
+    'journey_empty_detail': 'Is yatra ke liye abhi koi daily guidance uplabdh nahin hai.',
+    'journey_mark_done': 'Poora mark karein',
+    'journey_micro_practice': 'Chhota abhyas',
+    'journey_next_day': 'Agla din',
+    'journey_open_verse': 'Shlok kholen',
+    'journey_progress': 'Pragati',
+    'journey_reflection_prompt': 'Chintan prashn',
+    'journey_status_completed': 'Poora',
+    'journey_status_in_progress': 'Chalu',
+    'journey_status_not_started': 'Shuru nahin hua',
+    'journey_verse_unavailable': 'Abhi yeh shlok khola nahin ja saka.',
+    'journeys_intro':
+        'Ek path chunen aur har din thoda aage badhein. Dheemi pragati bhi pragati hai.',
+    'journeys_subtitle': 'Sangathit pragati path',
+    'meaning': 'Arth',
+    'morning_affirmation': 'Subah ka action',
+    'morning_greeting_empty':
+        'Abhi koi morning greeting generate nahin hui. Banane ke liye button dabayein.',
+    'notification_custom_time': 'Nishchit samay',
+    'notification_default_verse_line': 'Apne kartavya mein sthir raho.',
+    'notification_evening': 'Shaam',
+    'notification_morning': 'Subah',
+    'notification_opt_in_subtitle': 'Har din ek sammanpoorn shlok reminder payein.',
+    'notification_opt_in_title': 'Daily shlok reminders',
+    'notification_pause_subtitle': 'Preferences rakhein, filhaal reminders pause karein.',
+    'notification_pause_title': 'Notifications pause karein',
+    'notification_permission_denied':
+        'Permission na milne ki wajah se notifications band hain.',
+    'notification_pick_time': 'Samay chunein',
+    'notification_reflect_prefix': 'Chintan',
+    'notification_reflection_prompt':
+        'Aapki agli kriya ko kaunsa ek sankalp guide karega?',
+    'notification_section_title': 'Verse Of The Day Notifications',
+    'notification_time_window': 'Reminder samay',
+    'notification_title': 'Aaj ka shlok',
+    'offline_chapter_notice':
+        'Offline mein cached ya bundled chapter data dikhaya ja raha hai.',
+    'offline_chat_notice':
+        'Aap offline hain. Purani chats padh sakte hain, par naya AI message bhejne ke liye internet chahiye.',
+    'offline_mode_notice':
+        'Offline mode: cached shlok aur local data dikhaya ja raha hai. AI chat ke liye internet chahiye.',
+    'onboarding_back': 'Wapas',
+    'onboarding_continue': 'Aage badhein',
+    'onboarding_notifications_subtitle':
+        'Agar chahen to roz ek komal shlok reminder paane ke liye opt in karein.',
+    'onboarding_notifications_title': 'Daily reminder (optional)',
+    'onboarding_preferences_subtitle':
+        'Yeh chunav tai karte hain ki chat aur guidance kaise jawab denge. Inhe baad mein Settings mein badal sakte hain.',
+    'onboarding_preferences_title': 'Bhasha aur guidance style chunen',
+    'onboarding_subtitle':
+        'Shlok-aadharit spashtata, bhavnaatmak sthirta aur chhote upyogi actions ke saath apna din sthir banayein.',
+    'preparing_image': 'Image preview tayyar ho raha hai...',
+    'privacy_mode_subtitle':
+        'Koi pehchaan yogya profile data local mein store na karein.',
+    'remove_from_collection': 'Hataayein',
+    'rename_collection': 'Naam badlein',
+    'sanskrit': 'Sanskrit',
+    'share_failed': 'Abhi share image tayyar nahin ho paayi.',
+    'tag_verses': 'Shlok tag karein',
+    'tag_verses_count': 'Tagged shlok',
+    'tag_verses_empty': 'Abhi koi tagged shlok nahin mila.',
+    'traditional_mode': 'Paramparik Mode',
+    'transliteration': 'Transliteration',
+    'try_again': 'Phir koshish karein',
+    'verification_checks': 'Jaanch',
+    'verification_details': 'Verification vivaran',
+    'verification_fail': 'Fail',
+    'verification_pass': 'Pass',
+    'verification_raw': 'Raw',
+    'verification_reviewed': 'Reviewed',
+    'verification_verified': 'Verified',
+    'verification_verses_used': 'Istemaal kiye gaye shlok',
+    'verse_bookmark': 'Shlok',
+    'verse_context': 'Joda gaya shlok context',
+    'verse_context_attached':
+        'Maine is shlok ko chat context ke roop mein jod diya hai',
+    'verse_recitation_follow_along': 'Saath-saath padhein',
+    'verse_recitation_pause': 'Pause',
+    'verse_recitation_play': 'Play',
+    'verse_recitation_title': 'Shlok paath',
+    'verse_recitation_unavailable':
+        'Is shlok ke liye audio abhi uplabdh nahin hai.',
+    'verse_sync_count': 'Ab tak sync hue shlok',
+    'verses': 'shlok',
+    'verses_browser': 'Shlok Browser',
+    'verses_empty': 'Is adhyay ke liye abhi koi shlok nahin mila.',
+    'verses_force_resync': 'Force resync',
+    'verses_sync': 'Shlok sync karein',
+    'verses_sync_incomplete_server_keep_offline':
+        'Sync adhura hai; offline mode mein jaari rakhein.',
+    'verses_sync_more_actions': 'Aur sync actions',
     'item_singular': 'item',
     'item_plural': 'items',
     'question_prefix': 'Prashn',

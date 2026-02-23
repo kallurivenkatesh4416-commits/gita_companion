@@ -19,7 +19,21 @@ class Settings(BaseSettings):
     use_mock_provider: bool = True
     production_domain: str | None = None  # e.g. "https://gita.yourdomain.com"
 
-    
+    # Security: set a non-empty value to require X-API-Key header on all requests.
+    # Leave empty (default) to run unauthenticated in local dev.
+    client_api_key: str = ""
+
+    # Rate limiting (requests per minute per IP for LLM-heavy endpoints)
+    rate_limit_ask: str = "20/minute"
+    rate_limit_chat: str = "30/minute"
+    rate_limit_mood: str = "20/minute"
+
+    # Retrieval tuning
+    retrieval_top_k: int = 3
+    retrieval_similarity_threshold: float = 0.75
+
+    # Feature flags
+    feature_journeys_enabled: bool = False
 
     # Claude (Anthropic)
     anthropic_api_key: str | None = None

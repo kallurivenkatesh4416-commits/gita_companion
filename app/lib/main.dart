@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'src/api/api_client.dart';
+import 'src/calendar/calendar_state.dart';
 import 'src/i18n/app_strings.dart';
 import 'src/models/models.dart';
 import 'src/repositories/gita_repository.dart';
@@ -15,6 +16,7 @@ import 'src/screens/journal_screen.dart';
 import 'src/screens/journeys_screen.dart';
 import 'src/screens/mood_screen.dart';
 import 'src/screens/onboarding_screen.dart';
+import 'src/screens/panchang_screen.dart';
 import 'src/screens/ritual_screen.dart';
 import 'src/screens/settings_screen.dart';
 import 'src/screens/verses_screen.dart';
@@ -36,8 +38,15 @@ class GitaCompanionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<AppState>(
-      create: (_) => AppState(repository: repository)..initialize(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AppState>(
+          create: (_) => AppState(repository: repository)..initialize(),
+        ),
+        ChangeNotifierProvider<CalendarState>(
+          create: (_) => CalendarState()..initialize(),
+        ),
+      ],
       child: MaterialApp(
         title: 'Gita Companion',
         debugShowCheckedModeBanner: false,
@@ -56,7 +65,8 @@ class GitaCompanionApp extends StatelessWidget {
           '/collections': (_) => const CollectionsScreen(),
           '/journeys': (_) => const JourneysScreen(),
           '/settings': (_) => const SettingsScreen(),
-          '/verses': (_) => const VersesScreen(),
+          '/verses':   (_) => const VersesScreen(),
+          '/panchang': (_) => const PanchangScreen(),
         },
         onGenerateRoute: (settings) {
           if (settings.name == '/chapter') {

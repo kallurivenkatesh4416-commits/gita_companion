@@ -1,0 +1,48 @@
+# Pre-commit hooks for Gita Companion
+#
+# Install:
+#   pip install pre-commit detect-secrets
+#   pre-commit install
+#
+# One-time baseline generation (run after install):
+#   detect-secrets scan > .secrets.baseline
+#
+# Usage after setup: hooks run automatically on every `git commit`.
+# To run manually on all files: pre-commit run --all-files
+
+repos:
+  # ── Secret detection ───────────────────────────────────────────────────────
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            .*\.example|
+            .*\.md|
+            app/test/.*
+          )$
+
+  # ── Block .env files from being committed ─────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: no-commit-to-branch
+        args: ['--branch', 'main']
+
+  # ── Python linting ─────────────────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: ['--fix']
+        files: ^backend/
+      - id: ruff-format
+        files: ^backend/

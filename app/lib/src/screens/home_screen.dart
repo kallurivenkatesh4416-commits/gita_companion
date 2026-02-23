@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,12 +9,42 @@ import 'package:provider/provider.dart';
 import '../i18n/app_strings.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
+import '../ui/festival/festival_strip.dart';
+import '../ui/shared/design_tokens.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/spiritual_background.dart';
 import '../widgets/verse_preview_card.dart';
+import 'verse_detail_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late final ScrollController _scrollController;
+  bool _isScrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final scrolled = _scrollController.offset > 10;
+    if (scrolled != _isScrolled) {
+      setState(() => _isScrolled = scrolled);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   String _label({
     required AppStrings strings,
@@ -27,21 +58,18 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
-    final strings = AppStrings(appState.languageCode);
+    final strings  = AppStrings(appState.languageCode);
 
     return Scaffold(
-      appBar: AppBar(
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-          statusBarBrightness: Brightness.light,
-        ),
-        title: Text(strings.t('app_title')),
-        actions: <Widget>[
+      extendBodyBehindAppBar: true,
+      appBar: _GlassScrollAppBar(
+        isScrolled: _isScrolled,
+        title:      strings.t('app_title'),
+        actions: [
           Padding(
             padding: const EdgeInsets.only(right: 4),
             child: IconButton(
-              icon: const Icon(Icons.settings_outlined),
+              icon:      const Icon(Icons.settings_outlined),
               onPressed: () => Navigator.pushNamed(context, '/settings'),
             ),
           ),
@@ -50,248 +78,277 @@ class HomeScreen extends StatelessWidget {
       body: SpiritualBackground(
         child: RefreshIndicator(
           onRefresh: () => appState.refreshDailyVerse(),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            children: <Widget>[
-              _HeaderPanel(
-                strings: strings,
-                mode: appState.guidanceMode,
-              ),
-              if (appState.offlineMode) ...<Widget>[
-                const SizedBox(height: 12),
-                _OfflineNotice(text: strings.t('offline_mode_notice')),
-              ],
-              const SizedBox(height: 18),
-              _SectionTitle(
-                title: strings.t('daily_verse'),
-                subtitle: strings.t('daily_verse_subtitle'),
-              ),
-              const SizedBox(height: 10),
-              if (appState.dailyVerse != null)
-                VersePreviewCard(
-                  verse: appState.dailyVerse!,
-                  translationMaxLines: 3,
-                  showTransliteration: false,
-                  showTags: false,
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/verse',
-                    arguments: appState.dailyVerse,
-                  ),
-                )
-              else
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          appState.dailyVerseError ??
-                              strings.t('daily_verse_unavailable'),
-                        ),
-                        const SizedBox(height: 10),
-                        FilledButton.tonalIcon(
-                          onPressed: () =>
-                              context.read<AppState>().refreshDailyVerse(),
-                          icon: const Icon(Icons.refresh),
-                          label: Text(strings.t('retry')),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, '/ritual'),
-                  icon: const Icon(Icons.self_improvement_outlined),
-                  label: Text(
-                    strings.t('start_today_60_sec'),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  ),
+          child: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // Top padding for the glass app bar
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: kToolbarHeight + MediaQuery.paddingOf(context).top,
                 ),
               ),
-              const SizedBox(height: 16),
-              Card(
-                child: Theme(
-                  data: Theme.of(context).copyWith(
-                    dividerColor: Colors.transparent,
-                  ),
-                  child: ExpansionTile(
-                    initiallyExpanded: false,
-                    tilePadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    title: Text(
-                      _label(
+
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate(
+                    <Widget>[
+                      // ── Hero header ──────────────────────────────────────
+                      _HeaderPanel(
                         strings: strings,
-                        key: 'more_for_today',
-                        fallback: 'More for today',
+                        mode:    appState.guidanceMode,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      strings.t('companion_tools_subtitle'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    children: <Widget>[
-                      if (appState.ritualCompletedToday) ...<Widget>[
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .secondaryContainer
-                                  .withValues(alpha: 0.7),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Text(
-                              strings.t('done_today'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelMedium
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSecondaryContainer,
-                                  ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
+
+                      if (appState.offlineMode) ...<Widget>[
+                        const SizedBox(height: 12),
+                        _OfflineNotice(text: strings.t('offline_mode_notice')),
                       ],
-                      Text(
-                        strings.t('daily_verse_update_note'),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                      ),
+
+                      // ── Festival strip ───────────────────────────────────
+                      const SizedBox(height: 18),
+                      const FestivalStrip(),
+
+                      // ── Daily verse ──────────────────────────────────────
                       const SizedBox(height: 18),
                       _SectionTitle(
-                        title: strings.t('morning_greeting'),
-                        subtitle: strings.t('morning_greeting_subtitle'),
-                        trailing: IconButton(
-                          tooltip: appState.morningGreeting == null
-                              ? strings.t('generate_morning_greeting')
-                              : strings.t('regenerate_morning_greeting'),
-                          onPressed: appState.morningGreetingLoading
-                              ? null
-                              : () => context
-                                  .read<AppState>()
-                                  .generateMorningGreeting(force: true),
-                          icon: appState.morningGreetingLoading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.refresh_rounded),
-                        ),
+                        title:    strings.t('daily_verse'),
+                        subtitle: strings.t('daily_verse_subtitle'),
                       ),
                       const SizedBox(height: 10),
-                      if (appState.morningGreeting != null)
-                        _MorningGreetingCard(
-                          greeting: appState.morningGreeting!,
-                          strings: strings,
-                          onVerseTap: appState.dailyVerse == null
-                              ? null
-                              : () => Navigator.pushNamed(
-                                    context,
-                                    '/verse',
-                                    arguments: appState.dailyVerse,
-                                  ),
-                        )
+                      if (appState.dailyVerse != null)
+                        _OpenVerseContainer(verse: appState.dailyVerse!)
                       else
                         Card(
                           child: Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Text(
-                              strings.t('morning_greeting_empty'),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Text(
+                                  appState.dailyVerseError ??
+                                      strings.t('daily_verse_unavailable'),
+                                ),
+                                const SizedBox(height: 10),
+                                FilledButton.tonalIcon(
+                                  onPressed: () =>
+                                      context.read<AppState>().refreshDailyVerse(),
+                                  icon:  const Icon(Icons.refresh),
+                                  label: Text(strings.t('retry')),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      const SizedBox(height: 20),
-                      _SectionTitle(
-                        title: strings.t('companion_tools'),
-                        subtitle: strings.t('companion_tools_subtitle'),
+
+                      // ── Ritual CTA ───────────────────────────────────────
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/ritual'),
+                          icon:  const Icon(Icons.self_improvement_outlined),
+                          label: Text(
+                            strings.t('start_today_60_sec'),
+                            maxLines:  2,
+                            overflow:  TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 10),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final crossAxisCount =
-                              constraints.maxWidth >= 760 ? 3 : 2;
-                          return GridView.count(
-                            shrinkWrap: true,
-                            crossAxisCount: crossAxisCount,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1.05,
-                            physics: const NeverScrollableScrollPhysics(),
+
+                      // ── More for today ───────────────────────────────────
+                      const SizedBox(height: 16),
+                      Card(
+                        child: Theme(
+                          data: Theme.of(context)
+                              .copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            initiallyExpanded: false,
+                            tilePadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical:   4,
+                            ),
+                            childrenPadding:
+                                const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                            title: Text(
+                              _label(
+                                strings:  strings,
+                                key:      'more_for_today',
+                                fallback: 'More for today',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              strings.t('companion_tools_subtitle'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                             children: <Widget>[
-                              _GlassTile(
-                                icon: Icons.spa_outlined,
-                                iconColor: const Color(0xFF4B5D43), // Sage green
-                                title: strings.t('check_in'),
-                                subtitle: strings.t('check_in_subtitle'),
-                                onTap: () => Navigator.pushNamed(context, '/mood'),
+                              if (appState.ritualCompletedToday) ...<Widget>[
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical:   6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .secondaryContainer
+                                          .withValues(alpha: 0.7),
+                                      borderRadius:
+                                          BorderRadius.circular(99),
+                                    ),
+                                    child: Text(
+                                      strings.t('done_today'),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSecondaryContainer,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                              Text(
+                                strings.t('daily_verse_update_note'),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
                               ),
-                              _GlassTile(
-                                icon: Icons.menu_book_outlined,
-                                iconColor: const Color(0xFF8E4A2F), // Terracotta
-                                title: strings.t('chapters'),
-                                subtitle: strings.t('chapters_card_subtitle'),
-                                onTap: () => Navigator.pushNamed(context, '/chapters'),
+                              const SizedBox(height: 18),
+                              _SectionTitle(
+                                title:    strings.t('morning_greeting'),
+                                subtitle: strings.t('morning_greeting_subtitle'),
+                                trailing: IconButton(
+                                  tooltip: appState.morningGreeting == null
+                                      ? strings.t('generate_morning_greeting')
+                                      : strings.t('regenerate_morning_greeting'),
+                                  onPressed: appState.morningGreetingLoading
+                                      ? null
+                                      : () => context
+                                          .read<AppState>()
+                                          .generateMorningGreeting(force: true),
+                                  icon: appState.morningGreetingLoading
+                                      ? const SizedBox(
+                                          width:  16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.refresh_rounded),
+                                ),
                               ),
-                              _GlassTile(
-                                icon: Icons.favorite_outline,
-                                iconColor: const Color(0xFFFF9933), // Saffron gold
-                                title: strings.t('favorites'),
-                                subtitle: strings.t('favorites_subtitle'),
-                                onTap: () => Navigator.pushNamed(context, '/favorites'),
+                              const SizedBox(height: 10),
+                              if (appState.morningGreeting != null)
+                                _MorningGreetingCard(
+                                  greeting:   appState.morningGreeting!,
+                                  strings:    strings,
+                                  onVerseTap: appState.dailyVerse == null
+                                      ? null
+                                      : () => Navigator.pushNamed(
+                                            context,
+                                            '/verse',
+                                            arguments: appState.dailyVerse,
+                                          ),
+                                )
+                              else
+                                Card(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Text(
+                                      strings.t('morning_greeting_empty'),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 20),
+                              _SectionTitle(
+                                title:    strings.t('companion_tools'),
+                                subtitle: strings.t('companion_tools_subtitle'),
                               ),
-                              _GlassTile(
-                                icon: Icons.menu_book_rounded,
-                                iconColor: const Color(0xFF4A2A14), // Deep brown
-                                title: strings.t('journal'),
-                                subtitle: strings.t('journal_subtitle'),
-                                onTap: () => Navigator.pushNamed(context, '/journal'),
-                              ),
-                              _GlassTile(
-                                icon: Icons.collections_bookmark_outlined,
-                                iconColor: const Color(0xFF6B4E3D), // Warm brown
-                                title: strings.t('collections'),
-                                subtitle: strings.t('collections_subtitle'),
-                                onTap: () => Navigator.pushNamed(context, '/collections'),
-                              ),
-                              _GlassTile(
-                                icon: Icons.route_outlined,
-                                iconColor: const Color(0xFF4B5D43), // Sage green
-                                title: strings.t('journeys'),
-                                subtitle: strings.t('journeys_subtitle'),
-                                onTap: () => Navigator.pushNamed(context, '/journeys'),
+                              const SizedBox(height: 10),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final crossAxisCount =
+                                      constraints.maxWidth >= 760 ? 3 : 2;
+                                  return GridView.count(
+                                    shrinkWrap:      true,
+                                    crossAxisCount:  crossAxisCount,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing:  12,
+                                    childAspectRatio: 1.05,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    children: <Widget>[
+                                      _GlassTile(
+                                        icon:      Icons.spa_outlined,
+                                        iconColor: const Color(0xFF4B5D43),
+                                        title:     strings.t('check_in'),
+                                        subtitle:  strings.t('check_in_subtitle'),
+                                        onTap: () =>
+                                            Navigator.pushNamed(context, '/mood'),
+                                      ),
+                                      _GlassTile(
+                                        icon:      Icons.menu_book_outlined,
+                                        iconColor: const Color(0xFF8E4A2F),
+                                        title:     strings.t('chapters'),
+                                        subtitle:  strings.t('chapters_card_subtitle'),
+                                        onTap: () =>
+                                            Navigator.pushNamed(context, '/chapters'),
+                                      ),
+                                      _GlassTile(
+                                        icon:      Icons.favorite_outline,
+                                        iconColor: const Color(0xFFFF9933),
+                                        title:     strings.t('favorites'),
+                                        subtitle:  strings.t('favorites_subtitle'),
+                                        onTap: () =>
+                                            Navigator.pushNamed(context, '/favorites'),
+                                      ),
+                                      _GlassTile(
+                                        icon:      Icons.menu_book_rounded,
+                                        iconColor: const Color(0xFF4A2A14),
+                                        title:     strings.t('journal'),
+                                        subtitle:  strings.t('journal_subtitle'),
+                                        onTap: () =>
+                                            Navigator.pushNamed(context, '/journal'),
+                                      ),
+                                      _GlassTile(
+                                        icon:      Icons.collections_bookmark_outlined,
+                                        iconColor: const Color(0xFF6B4E3D),
+                                        title:     strings.t('collections'),
+                                        subtitle:  strings.t('collections_subtitle'),
+                                        onTap: () =>
+                                            Navigator.pushNamed(context, '/collections'),
+                                      ),
+                                      _GlassTile(
+                                        icon:      Icons.route_outlined,
+                                        iconColor: const Color(0xFF4B5D43),
+                                        title:     strings.t('journeys'),
+                                        subtitle:  strings.t('journeys_subtitle'),
+                                        onTap: () =>
+                                            Navigator.pushNamed(context, '/journeys'),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
                             ],
-                          );
-                        },
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -309,18 +366,124 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Header Panel — Deep terracotta gradient + serif greeting
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// Scroll-aware glass AppBar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _GlassScrollAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  final bool isScrolled;
+  final String title;
+  final List<Widget> actions;
+
+  const _GlassScrollAppBar({
+    required this.isScrolled,
+    required this.title,
+    required this.actions,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    // Transparent AppBar at top of list
+    if (!isScrolled) {
+      return AppBar(
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor:           Colors.transparent,
+          statusBarIconBrightness:  Brightness.dark,
+          statusBarBrightness:      Brightness.light,
+        ),
+        title:            Text(title),
+        actions:          actions,
+        backgroundColor:  Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation:        0,
+      );
+    }
+
+    // Glass AppBar once scrolled
+    return RepaintBoundary(
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: GlassTokens.blurAppBar,
+            sigmaY: GlassTokens.blurAppBar,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color:  theme.colorScheme.surface
+                  .withValues(alpha: GlassTokens.fillAppBar),
+              border: const Border(
+                bottom: BorderSide(
+                  color: GlassTokens.borderGold,
+                  width: GlassTokens.borderWidth,
+                ),
+              ),
+            ),
+            child: AppBar(
+              systemOverlayStyle: const SystemUiOverlayStyle(
+                statusBarColor:          Colors.transparent,
+                statusBarIconBrightness: Brightness.dark,
+                statusBarBrightness:     Brightness.light,
+              ),
+              title:            Text(title),
+              actions:          actions,
+              backgroundColor:  Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              elevation:        0,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OpenContainer wrapper for daily verse card → verse detail
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OpenVerseContainer extends StatelessWidget {
+  final Verse verse;
+  const _OpenVerseContainer({required this.verse});
+
+  @override
+  Widget build(BuildContext context) {
+    return OpenContainer<void>(
+      transitionDuration: MotionTokens.open,
+      transitionType:     ContainerTransitionType.fadeThrough,
+      closedElevation:    0,
+      openElevation:      0,
+      closedColor: Theme.of(context).colorScheme.surface,
+      openColor:   Theme.of(context).scaffoldBackgroundColor,
+      closedShape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(20)),
+      ),
+      openBuilder:   (ctx, _) => VerseDetailScreen(verse: verse),
+      closedBuilder: (ctx, open) => VersePreviewCard(
+        verse:                verse,
+        translationMaxLines:  3,
+        showTransliteration:  false,
+        showTags:             false,
+        onTap:                open,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Header Panel — terracotta gradient hero
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _HeaderPanel extends StatelessWidget {
   final AppStrings strings;
   final String mode;
 
-  const _HeaderPanel({
-    required this.strings,
-    required this.mode,
-  });
+  const _HeaderPanel({required this.strings, required this.mode});
 
   @override
   Widget build(BuildContext context) {
@@ -329,8 +492,8 @@ class _HeaderPanel extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin:  Alignment.topLeft,
+          end:    Alignment.bottomRight,
           colors: <Color>[
             Color(0xFF8E4A2F), // Deep Terracotta
             Color(0xFF5D2E1C), // Dark Earthy Brown
@@ -338,9 +501,9 @@ class _HeaderPanel extends StatelessWidget {
         ),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: const Color(0xFF5D2E1C).withValues(alpha: 0.35),
+            color:      const Color(0xFF5D2E1C).withValues(alpha: 0.35),
             blurRadius: 20,
-            offset: const Offset(0, 10),
+            offset:     const Offset(0, 10),
           ),
         ],
       ),
@@ -350,24 +513,25 @@ class _HeaderPanel extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
+              color:        Colors.white.withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(99),
             ),
             child: Text(
               strings.guidanceModeLabel(mode),
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Colors.white,
-                  ),
+              style: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(color: Colors.white),
             ),
           ),
           const SizedBox(height: 12),
           Text(
             strings.t('good_to_see_you'),
             style: GoogleFonts.playfairDisplay(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-              height: 1.2,
+              fontSize:    22,
+              fontWeight:  FontWeight.w600,
+              color:       Colors.white,
+              height:      1.2,
               letterSpacing: 0.3,
             ),
           ),
@@ -384,9 +548,9 @@ class _HeaderPanel extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
 // Section Title
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _SectionTitle extends StatelessWidget {
   final String title;
@@ -410,9 +574,10 @@ class _SectionTitle extends StatelessWidget {
             children: <Widget>[
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               Text(
@@ -433,9 +598,12 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Offline notice banner
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _OfflineNotice extends StatelessWidget {
   final String text;
-
   const _OfflineNotice({required this.text});
 
   @override
@@ -445,9 +613,9 @@ class _OfflineNotice extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer.withValues(alpha: 0.72),
+        color:        colorScheme.secondaryContainer.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
+        border:       Border.all(
           color: colorScheme.secondary.withValues(alpha: 0.24),
         ),
       ),
@@ -461,9 +629,9 @@ class _OfflineNotice extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Glassmorphic Tile with scale-on-tap effect
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// Glassmorphic Tile (unchanged from original, kept for fidelity)
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _GlassTile extends StatefulWidget {
   final IconData icon;
@@ -487,17 +655,17 @@ class _GlassTile extends StatefulWidget {
 class _GlassTileState extends State<_GlassTile>
     with SingleTickerProviderStateMixin {
   late final AnimationController _scaleController;
-  late final Animation<double> _scaleAnimation;
+  late final Animation<double>   _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _scaleController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 120),
+      vsync:           this,
+      duration:        const Duration(milliseconds: 120),
       reverseDuration: const Duration(milliseconds: 200),
-      lowerBound: 0.0,
-      upperBound: 1.0,
+      lowerBound:      0.0,
+      upperBound:      1.0,
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
       CurvedAnimation(parent: _scaleController, curve: Curves.easeOut),
@@ -511,27 +679,21 @@ class _GlassTileState extends State<_GlassTile>
   }
 
   void _onTapDown(TapDownDetails _) => _scaleController.forward();
-
   void _onTapUp(TapUpDetails _) {
     _scaleController.reverse();
     widget.onTap();
   }
-
   void _onTapCancel() => _scaleController.reverse();
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _scaleAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scaleAnimation.value,
-          child: child,
-        );
-      },
+      builder: (context, child) =>
+          Transform.scale(scale: _scaleAnimation.value, child: child),
       child: GestureDetector(
-        onTapDown: _onTapDown,
-        onTapUp: _onTapUp,
+        onTapDown:   _onTapDown,
+        onTapUp:     _onTapUp,
         onTapCancel: _onTapCancel,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
@@ -539,9 +701,9 @@ class _GlassTileState extends State<_GlassTile>
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.15),
+                color:        Colors.white.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
+                border:       Border.all(
                   color: Colors.white.withValues(alpha: 0.3),
                   width: 0.5,
                 ),
@@ -553,13 +715,13 @@ class _GlassTileState extends State<_GlassTile>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: widget.iconColor.withValues(alpha: 0.12),
+                      color:        widget.iconColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       widget.icon,
                       color: widget.iconColor,
-                      size: 22,
+                      size:  22,
                     ),
                   ),
                   const Spacer(),
@@ -567,14 +729,14 @@ class _GlassTileState extends State<_GlassTile>
                     widget.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style:    Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     widget.subtitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style:    Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                   ),
@@ -587,6 +749,10 @@ class _GlassTileState extends State<_GlassTile>
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Morning Greeting Card
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _MorningGreetingCard extends StatefulWidget {
   final MorningGreeting greeting;
@@ -608,21 +774,19 @@ class _MorningGreetingCardState extends State<_MorningGreetingCard> {
 
   String _previewText(String text) {
     final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.length <= 160) {
-      return normalized;
-    }
+    if (normalized.length <= 160) return normalized;
     return '${normalized.substring(0, 160).trimRight()}...';
   }
 
   @override
   Widget build(BuildContext context) {
     final greeting = widget.greeting;
-    final strings = widget.strings;
-    final palette = greeting.background.palette;
-    final first = palette.isNotEmpty
+    final strings  = widget.strings;
+    final palette  = greeting.background.palette;
+    final first    = palette.isNotEmpty
         ? _colorFromHex(palette.first)
         : const Color(0xFFF6D08D);
-    final second = palette.length > 1
+    final second   = palette.length > 1
         ? _colorFromHex(palette[1])
         : const Color(0xFFD98F4E);
 
@@ -630,13 +794,13 @@ class _MorningGreetingCardState extends State<_MorningGreetingCard> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          begin:  Alignment.topLeft,
+          end:    Alignment.bottomRight,
           colors: <Color>[first, second],
         ),
       ),
       child: Card(
-        color: Colors.transparent,
+        color:     Colors.transparent,
         elevation: 0,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -644,21 +808,25 @@ class _MorningGreetingCardState extends State<_MorningGreetingCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text(
-                _expanded ? greeting.greeting : _previewText(greeting.greeting),
+                _expanded
+                    ? greeting.greeting
+                    : _previewText(greeting.greeting),
                 maxLines: _expanded ? null : 3,
                 overflow: _expanded ? null : TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: const Color(0xFF2A1A0A),
-                    ),
+                style:    Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(color: const Color(0xFF2A1A0A)),
               ),
               const SizedBox(height: 10),
               Wrap(
-                spacing: 8,
+                spacing:  8,
                 runSpacing: 8,
                 children: <Widget>[
                   ActionChip(
-                    label:
-                        Text('${strings.t('bhagavad_gita')} ${greeting.verse.ref}'),
+                    label: Text(
+                      '${strings.t('bhagavad_gita')} ${greeting.verse.ref}',
+                    ),
                     onPressed: widget.onVerseTap,
                   ),
                 ],
@@ -666,10 +834,9 @@ class _MorningGreetingCardState extends State<_MorningGreetingCard> {
               const SizedBox(height: 6),
               TextButton.icon(
                 style: TextButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  minimumSize: const Size(0, 32),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding:        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize:    const Size(0, 32),
+                  tapTargetSize:  MaterialTapTargetSize.shrinkWrap,
                 ),
                 onPressed: () => setState(() => _expanded = !_expanded),
                 icon: Icon(
@@ -708,9 +875,7 @@ class _MorningGreetingCardState extends State<_MorningGreetingCard> {
 
   Color _colorFromHex(String value) {
     final hex = value.replaceAll('#', '').trim();
-    if (hex.length != 6) {
-      return const Color(0xFFF6D08D);
-    }
+    if (hex.length != 6) return const Color(0xFFF6D08D);
     return Color(int.parse('FF$hex', radix: 16));
   }
 }
